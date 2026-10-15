@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MeetFa — زیرنویس زنده</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="bar">
+    <span class="brand">MeetFa</span>
+    <span id="meet" class="meet" dir="ltr" title="کد جلسه"></span>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="بخش‌ها">
+    <button role="tab" id="tab-live" aria-controls="view-live" aria-selected="true">زنده</button>
+    <button role="tab" id="tab-history" aria-controls="view-history" aria-selected="false" tabindex="-1">جلسات قبلی</button>
+  </nav>
+
+  <section id="view-live" class="view" role="tabpanel" aria-labelledby="tab-live">
+    <div id="status" class="status" data-status="idle" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="status-label" class="label"></span>
+      <span id="status-detail" class="detail"></span>
+    </div>
+    <main id="feed" class="feed" aria-live="off"></main>
+    <button id="jump" class="jump" hidden>برو به آخرین متن</button>
+  </section>
+
+  <section id="view-history" class="view" role="tabpanel" aria-labelledby="tab-history" hidden>
+    <div id="history-list" class="feed"></div>
+    <div id="history-detail" class="detail-view" hidden>
+      <div class="detail-head">
+        <button id="back" class="link">→ بازگشت به لیست</button>
+        <h2 id="detail-title"></h2>
+        <p id="detail-meta" class="meta"></p>
+      </div>
+      <div id="detail-feed" class="feed"></div>
+    </div>
+  </section>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

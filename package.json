@@ -1,0 +1,25 @@
+{
+  "name": "meetfa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "2.0.3",
+    "@types/chrome": "0.0.287",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "25.0.1",
+    "typescript": "5.6.3",
+    "vazirmatn": "^33.0.3",
+    "vite": "5.4.11",
+    "vitest": "2.1.8"
+  },
+  "dependencies": {
+    "idb": "^8.0.0"
+  }
+}
