@@ -1,0 +1,432 @@
+From 19c0928c58cbb317f894004d0194751e3e5b074b Mon Sep 17 00:00:00 2001
+From: "Claude (developer)" <dev@meetfa.local>
+Date: Thu, 15 Oct 2026 17:55:31 +0000
+Subject: [PATCH] fix(stage2): stabilize storage & recovery
+
+- deleteSession refuses active sessions at data layer (returns boolean)
+- upsertSegments ignores writes to deleted sessions (no orphan segments)
+- late non-final update no longer overwrites a final segment
+- pagehide sends MEETING_ENDED reason=unload => session 'interrupted'
+- side panel shows message if delete is refused
+- add Service Worker tests with chrome mock (10 tests)
+- docs: clarify test counts (21 parser/tracker vs total)
+---
+ README.md                       |   8 +-
+ docs/dom-spike.md               |   4 +-
+ src/background/serviceWorker.ts |   5 +-
+ src/content/index.ts            |   6 +-
+ src/shared/messages.ts          |   3 +-
+ src/sidepanel/history.ts        |   6 +-
+ src/storage/repositories.ts     |  36 ++++++---
+ tests/chromeMock.ts             |  41 ++++++++++
+ tests/repositories.test.ts      |   5 +-
+ tests/serviceWorker.test.ts     | 136 ++++++++++++++++++++++++++++++++
+ 10 files changed, 229 insertions(+), 21 deletions(-)
+ create mode 100644 tests/chromeMock.ts
+ create mode 100644 tests/serviceWorker.test.ts
+
+diff --git a/README.md b/README.md
+index 4ef1dc9..ca70c00 100644
+--- a/README.md
++++ b/README.md
+@@ -6,7 +6,7 @@
+ 1. نصب **Node.js 20 LTS** از nodejs.org (گزینه‌های پیش‌فرض)
+ 2. استخراج پوشه `meetfa` → باز کردن PowerShell در همان پوشه
+ 3. `npm install`
+-4. `npm test` (باید ۲۸ تست سبز شود)
++4. `npm test` (باید ۳۸ تست سبز شود: ۲۱ parser/tracker + ۷ IndexedDB + ۱۰ Service Worker)
+ 5. `npm run build` → پوشه `dist` ساخته می‌شود
+ 6. Chrome (نسخه ۱۱۶+) → `chrome://extensions` → روشن کردن **Developer mode**
+ 7. **Load unpacked** → انتخاب پوشه `dist`
+@@ -40,7 +40,7 @@
+ | 4 | «تغییر نام» → عنوان جدید → Enter | عنوان جدید بماند (Esc = انصراف) |
+ | 5 | «حذف» → «بله، حذف شود» | جلسه از لیست حذف شود |
+ | 6 | حذف جلسه «در حال ضبط» | دکمه غیرفعال |
+-| 7 | **بستن تب** وسط جلسه | جلسه «قطع‌شده»؛ متن تا ~۲ ثانیه آخر موجود |
++| 7 | **بستن تب** وسط جلسه | جلسه «قطع‌شده» (نه «پایان‌یافته»)؛ متن تا ~۲ ثانیه آخر موجود |
+ | 8 | **Reload تب** وسط جلسه و ورود دوباره (کمتر از ۵ دقیقه) | ادامه همان جلسه (جلسه جدید ساخته نشود) |
+ | 9 | **کرش**: Task Manager ویندوز → End task روی Chrome وسط جلسه → باز کردن دوباره Chrome | جلسه «قطع‌شده» با متن ذخیره‌شده |
+ | 10 | بستن کامل Chrome و باز کردن دوباره | همه جلسات و متن‌ها باقی باشند |
+@@ -50,6 +50,8 @@
+ - `sessions`: id, title, meetCode, startedAt, endedAt?, status (active / ended / interrupted), language?, segmentCount
+ - `segments`: id, sessionId, speaker, text, startedAt, updatedAt, final — ایندکس `bySession`
+ - نهایی‌ها فوری (durability: strict)، متن زنده هر ۲ ثانیه
++- قرارداد `endedAt`: خروج عادی و بستن/reload تب = زمان رویداد؛ کرش/بستن مرورگر = max(شروع جلسه، آخرین تغییر متن)
++- جلسه active در لایه داده هم قابل حذف نیست؛ نسخه غیرنهایی دیررس segment نهایی را بازنویسی نمی‌کند
+ 
+ ## ساختار
+ ```
+@@ -59,7 +61,7 @@ src/sidepanel/    index.html · main.ts · style.css
+ src/storage/      db.ts · repositories.ts
+ src/sidepanel/    history.ts · segmentView.ts
+ src/shared/       types.ts · messages.ts · status.ts · constants.ts
+-tests/            segmentTracker.test.ts · fixtures.ts
++tests/            segmentTracker.test.ts · repositories.test.ts · serviceWorker.test.ts · fixtures.ts · chromeMock.ts
+ spike/            dom-probe.js
+ docs/             dom-spike.md
+ ```
+diff --git a/docs/dom-spike.md b/docs/dom-spike.md
+index ebe8dc8..bb09862 100644
+--- a/docs/dom-spike.md
++++ b/docs/dom-spike.md
+@@ -29,7 +29,9 @@
+   3. فرزندان مستقیم (آخرین fallback)
+ - نام گوینده دیگر «اولین برگ متنی» نیست؛ دقیقاً متن ظرفِ کنار `img` است
+ 
+-## ۳. تست‌ها (۲۱ تست، همه پاس)
++## ۳. تست‌ها (۲۱ تست parser/tracker، همه پاس — وضعیت پایان مرحله ۱)
++> این عدد فقط مجموعه `tests/segmentTracker.test.ts` است. شمار کل تست‌های پروژه در README آمده
++> (مرحله ۲ فایل‌های `repositories.test.ts` و `serviceWorker.test.ts` را اضافه کرده است).
+ - fixture بازسازی‌شده ساختار واقعی با متن فارسی ماسک‌شده
+ - لایه ۱ و لایه ۲ روی همان DOM خروجی یکسان می‌دهند ⇒ اگر Meet کلاس‌ها را عوض کند، parser همچنان کار می‌کند
+ - دکمه «Jump to bottom» وارد متن نمی‌شود
+diff --git a/src/background/serviceWorker.ts b/src/background/serviceWorker.ts
+index b1b9c8f..838d99d 100644
+--- a/src/background/serviceWorker.ts
++++ b/src/background/serviceWorker.ts
+@@ -109,11 +109,12 @@ async function handleContent(tabId: number, msg: ContentMessage): Promise<void>
+     case 'MEETING_ENDED':
+       if (st.sessionId) {
+         await flushLive(st.sessionId);
+-        await endSession(st.sessionId, 'ended');
++        await endSession(st.sessionId, msg.reason === 'unload' ? 'interrupted' : 'ended');
+         send({ type: 'SESSIONS_CHANGED' });
+       }
+       st.status = 'disconnected';
+-      st.statusDetail = 'از جلسه خارج شدید — متن ذخیره شد';
++      st.statusDetail =
++        msg.reason === 'unload' ? 'صفحه بسته یا بارگذاری مجدد شد — متن ذخیره شد' : 'از جلسه خارج شدید — متن ذخیره شد';
+       break;
+     case 'STATUS':
+       st.status = msg.status;
+diff --git a/src/content/index.ts b/src/content/index.ts
+index bbbf1d1..c4eb7fa 100644
+--- a/src/content/index.ts
++++ b/src/content/index.ts
+@@ -38,11 +38,11 @@ function enter(code: string): void {
+   observer.start();
+ }
+ 
+-function leave(): void {
++function leave(reason: 'left' | 'unload' = 'left'): void {
+   observer?.stop();
+   observer = null;
+   currentCode = null;
+-  send({ type: 'MEETING_ENDED' });
++  send({ type: 'MEETING_ENDED', reason });
+ }
+ 
+ function tick(): void {
+@@ -72,6 +72,6 @@ function shutdown(): void {
+   observer?.stop();
+ }
+ window.addEventListener('pagehide', () => {
+-  if (currentCode) leave();
++  if (currentCode) leave('unload'); // بستن تب / reload ⇒ «قطع‌شده»، نه «پایان‌یافته»
+ });
+ tick();
+diff --git a/src/shared/messages.ts b/src/shared/messages.ts
+index f42ac2f..f1fb6f8 100644
+--- a/src/shared/messages.ts
++++ b/src/shared/messages.ts
+@@ -3,7 +3,8 @@ import type { CaptureStatus, Segment, TabState } from './types';
+ /** Content Script → Service Worker */
+ export type ContentMessage =
+   | { type: 'MEETING_STARTED'; meetCode: string }
+-  | { type: 'MEETING_ENDED' }
++  /** left = خروج عادی از تماس؛ unload = بسته شدن/reload صفحه (pagehide) */
++  | { type: 'MEETING_ENDED'; reason?: 'left' | 'unload' }
+   | { type: 'STATUS'; status: CaptureStatus; detail?: string }
+   | { type: 'SEGMENT_UPSERT'; segment: Segment };
+ 
+diff --git a/src/sidepanel/history.ts b/src/sidepanel/history.ts
+index c9a99f9..0be3759 100644
+--- a/src/sidepanel/history.ts
++++ b/src/sidepanel/history.ts
+@@ -77,7 +77,11 @@ function card(s: Session): HTMLElement {
+     no.focus();
+     no.onclick = () => confirmBox.replaceWith(actions);
+     yes.onclick = async () => {
+-      await deleteSession(s.id);
++      if (!(await deleteSession(s.id))) {
++        confirmBox.replaceChildren(el('span', 'meta', 'این جلسه دوباره در حال ضبط است و حذف نشد.'));
++        setTimeout(() => void refreshHistory(), 2000);
++        return;
++      }
+       await refreshHistory();
+     };
+   };
+diff --git a/src/storage/repositories.ts b/src/storage/repositories.ts
+index 18e18ca..e372df4 100644
+--- a/src/storage/repositories.ts
++++ b/src/storage/repositories.ts
+@@ -68,34 +68,52 @@ export function reopenSession(id: string) {
+   });
+ }
+ 
+-/** حذف جلسه + همه segmentهایش در یک تراکنش */
+-export async function deleteSession(id: string): Promise<void> {
++/**
++ * حذف جلسه + همه segmentهایش در یک تراکنش.
++ * جلسه active حذف نمی‌شود (خروجی false) — حتی اگر UI قدیمی دکمه را فعال نشان داده باشد
++ * (مثلاً جلسه‌ای که بعد از رندر لیست با reload دوباره active شده).
++ */
++export async function deleteSession(id: string): Promise<boolean> {
+   const db = await getDB();
+   const tx = db.transaction(['sessions', 'segments'], 'readwrite', STRICT);
++  const s = await tx.objectStore('sessions').get(id);
++  if (s?.status === 'active') {
++    await tx.done;
++    return false;
++  }
+   const segStore = tx.objectStore('segments');
+   for (const key of await segStore.index('bySession').getAllKeys(id)) await segStore.delete(key);
+   await tx.objectStore('sessions').delete(id);
+   await tx.done;
++  return true;
+ }
+ 
+ // ───────────── Segments ─────────────
+ 
+-/** upsert دسته‌ای؛ شمارنده جلسه در همان تراکنش به‌روز می‌شود */
++/**
++ * upsert دسته‌ای؛ شمارنده جلسه در همان تراکنش به‌روز می‌شود.
++ * - جلسه وجود ندارد (حذف‌شده) ⇒ هیچ چیز نوشته نمی‌شود (جلوگیری از segment یتیم)
++ * - نسخه غیرنهایی دیررس، segment نهایی‌شده را بازنویسی نمی‌کند
++ */
+ export async function upsertSegments(sessionId: string, segs: Segment[]): Promise<void> {
+   if (segs.length === 0) return;
+   const db = await getDB();
+   const tx = db.transaction(['segments', 'sessions'], 'readwrite', STRICT);
++  const sStore = tx.objectStore('sessions');
++  const s = await sStore.get(sessionId);
++  if (!s) {
++    await tx.done;
++    return;
++  }
+   const segStore = tx.objectStore('segments');
+   let added = 0;
+   for (const seg of segs) {
+-    if (!(await segStore.getKey(seg.id))) added++;
++    const prev = await segStore.get(seg.id);
++    if (!prev) added++;
++    else if (prev.final && !seg.final) continue;
+     await segStore.put({ ...seg, sessionId } satisfies StoredSegment);
+   }
+-  if (added) {
+-    const sStore = tx.objectStore('sessions');
+-    const s = await sStore.get(sessionId);
+-    if (s) await sStore.put({ ...s, segmentCount: s.segmentCount + added });
+-  }
++  if (added) await sStore.put({ ...s, segmentCount: s.segmentCount + added });
+   await tx.done;
+ }
+ 
+diff --git a/tests/chromeMock.ts b/tests/chromeMock.ts
+new file mode 100644
+index 0000000..240744d
+--- /dev/null
++++ b/tests/chromeMock.ts
+@@ -0,0 +1,41 @@
++/** شبیه‌ساز حداقلی API کروم برای تست Service Worker (بدون مرورگر) */
++type Listener = (...args: any[]) => any;
++
++export function installChromeMock() {
++  const session: Record<string, unknown> = {};
++  const listeners = { message: [] as Listener[], removed: [] as Listener[], updated: [] as Listener[] };
++  const sent: any[] = [];
++  const clone = <T>(v: T): T => structuredClone(v);
++
++  (globalThis as any).chrome = {
++    sidePanel: { setPanelBehavior: () => Promise.resolve() },
++    runtime: {
++      onMessage: { addListener: (f: Listener) => listeners.message.push(f) },
++      sendMessage: (m: unknown) => (sent.push(clone(m)), Promise.resolve()),
++    },
++    storage: {
++      session: {
++        get: async (k: string | null) =>
++          k === null ? clone(session) : k in session ? { [k]: clone(session[k]) } : {},
++        set: async (o: Record<string, unknown>) => void Object.assign(session, clone(o)),
++        remove: async (k: string) => void delete session[k],
++      },
++    },
++    tabs: {
++      onRemoved: { addListener: (f: Listener) => listeners.removed.push(f) },
++      onUpdated: { addListener: (f: Listener) => listeners.updated.push(f) },
++    },
++  };
++
++  return {
++    session,
++    sent,
++    /** پیام از Content Script تب tabId */
++    fromTab: (tabId: number, msg: unknown) => listeners.message.forEach((f) => f(msg, { tab: { id: tabId } }, () => {})),
++    closeTab: (tabId: number) => listeners.removed.forEach((f) => f(tabId, {})),
++    reloadTab: (tabId: number) => listeners.updated.forEach((f) => f(tabId, { status: 'loading' })),
++  };
++}
++
++/** صبر تا خالی شدن صف سریال SW و تراکنش‌های IndexedDB */
++export const settle = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+diff --git a/tests/repositories.test.ts b/tests/repositories.test.ts
+index 839711c..57fc4ea 100644
+--- a/tests/repositories.test.ts
++++ b/tests/repositories.test.ts
+@@ -66,7 +66,10 @@ describe('IndexedDB — متن‌ها', () => {
+     const b = await createSession('bbb-bbbb-bbb');
+     await upsertSegments(a.id, [seg('a1', 'x', 1)]);
+     await upsertSegments(b.id, [seg('b1', 'y', 1)]);
+-    await deleteSession(a.id);
++    // جلسه active قابل حذف نیست (قاعده مرحله ۲، حالا در لایه داده هم اعمال می‌شود)
++    expect(await deleteSession(a.id)).toBe(false);
++    await endSession(a.id, 'ended');
++    expect(await deleteSession(a.id)).toBe(true);
+     expect(await getSession(a.id)).toBeUndefined();
+     expect(await getSegments(a.id)).toEqual([]);
+     expect((await getSegments(b.id)).map((x) => x.id)).toEqual(['b1']);
+diff --git a/tests/serviceWorker.test.ts b/tests/serviceWorker.test.ts
+new file mode 100644
+index 0000000..c357c58
+--- /dev/null
++++ b/tests/serviceWorker.test.ts
+@@ -0,0 +1,136 @@
++import 'fake-indexeddb/auto';
++import { beforeEach, describe, expect, it, vi } from 'vitest';
++import { installChromeMock, settle } from './chromeMock';
++import type { Segment } from '../src/shared/types';
++
++const seg = (id: string, text: string, final: boolean, t = Date.now()): Segment =>
++  ({ id, speaker: 'گوینده ۱', text, startedAt: t, updatedAt: t, final });
++
++let mock: ReturnType<typeof installChromeMock>;
++let repo: typeof import('../src/storage/repositories');
++
++/** هر تست: IndexedDB خالی + بارگذاری تازه SW (مثل بالا آمدن SW) */
++async function bootSW(keepData = false) {
++  vi.resetModules();
++  if (!keepData) {
++    (globalThis as any).indexedDB = new (await import('fake-indexeddb')).IDBFactory();
++    mock = installChromeMock();
++  }
++  repo = await import('../src/storage/repositories');
++  await import('../src/background/serviceWorker');
++  await settle();
++}
++
++const sessions = () => repo.listSessions();
++
++beforeEach(async () => {
++  await bootSW();
++});
++
++describe('Service Worker — چرخه جلسه', () => {
++  it('شروع → متن نهایی → خروج: یک جلسه ended با متن ذخیره‌شده', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'سلام', true) });
++    mock.fromTab(1, { type: 'MEETING_ENDED' });
++    await settle();
++    const [s] = await sessions();
++    expect(s).toMatchObject({ status: 'ended', segmentCount: 1 });
++    expect((await repo.getSegments(s.id)).map((x) => x.text)).toEqual(['سلام']);
++  });
++
++  it('ترتیب پیام‌ها: upsert بلافاصله بعد از START به همان جلسه می‌رسد', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'اول', true) });
++    await settle();
++    const [s] = await sessions();
++    expect(s.segmentCount).toBe(1);
++  });
++
++  it('متن زنده بعد از LIVE_PERSIST_MS ذخیره می‌شود', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'در حال گفتن', false) });
++    await settle();
++    const [s] = await sessions();
++    expect(await repo.getSegments(s.id)).toHaveLength(0);
++    await settle(2200);
++    expect((await repo.getSegments(s.id))[0]).toMatchObject({ text: 'در حال گفتن', final: false });
++  }, 5000);
++
++  it('رویداد دیررس: نسخه غیرنهایی، segment نهایی را بازنویسی نمی‌کند', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'متن نهایی کامل', true) });
++    await settle();
++    const [s] = await sessions();
++    await repo.upsertSegments(s.id, [seg('s1', 'متن نها', false)]);
++    expect((await repo.getSegments(s.id))[0]).toMatchObject({ text: 'متن نهایی کامل', final: true });
++    expect((await repo.getSession(s.id))?.segmentCount).toBe(1);
++  });
++});
++
++describe('Service Worker — بازیابی', () => {
++  it('بستن تب (pagehide → MEETING_ENDED unload، سپس onRemoved) ⇒ interrupted', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'قبل از بستن', true) });
++    mock.fromTab(1, { type: 'MEETING_ENDED', reason: 'unload' });
++    mock.closeTab(1);
++    await settle();
++    const [s] = await sessions();
++    expect(s.status).toBe('interrupted');
++    expect(s.segmentCount).toBe(1);
++  });
++
++  it('Reload و شروع دوباره همان جلسه ⇒ جلسه تکراری ساخته نمی‌شود', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'قبل', true) });
++    mock.fromTab(1, { type: 'MEETING_ENDED', reason: 'unload' });
++    mock.reloadTab(1);
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s2', 'بعد', true) });
++    await settle();
++    const list = await sessions();
++    expect(list).toHaveLength(1);
++    expect(list[0]).toMatchObject({ status: 'active', segmentCount: 2 });
++  });
++
++  it('کد جلسه متفاوت در همان تب ⇒ جلسه جدید', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'aaa-aaaa-aaa' });
++    mock.reloadTab(1);
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'bbb-bbbb-bbb' });
++    await settle();
++    expect((await sessions()).map((s) => [s.meetCode, s.status])).toEqual([
++      ['bbb-bbbb-bbb', 'active'],
++      ['aaa-aaaa-aaa', 'interrupted'],
++    ]);
++  });
++
++  it('راه‌اندازی مجدد SW با تب زنده ⇒ جلسه active می‌ماند', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    await settle();
++    await bootSW(true); // storage.session حفظ شده (SW kill، نه مرورگر)
++    expect((await sessions())[0].status).toBe('active');
++  });
++
++  it('بستن مرورگر/کرش (storage.session پاک) ⇒ interrupted با endedAt = آخرین متن', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    const last = Date.now() + 60_000; // آخرین تغییر متن، بعد از شروع جلسه
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'آخرین', true, last) });
++    await settle();
++    for (const k of Object.keys(mock.session)) delete mock.session[k];
++    await bootSW(true);
++    const [s] = await sessions();
++    expect(s).toMatchObject({ status: 'interrupted', endedAt: last });
++  });
++
++  it('حذف جلسه active در لایه داده رد می‌شود؛ upsert به جلسه حذف‌شده segment یتیم نمی‌سازد', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    await settle();
++    const [s] = await sessions();
++    expect(await repo.deleteSession(s.id)).toBe(false);
++    expect(await repo.getSession(s.id)).toBeDefined();
++
++    await repo.endSession(s.id, 'ended');
++    expect(await repo.deleteSession(s.id)).toBe(true);
++    await repo.upsertSegments(s.id, [seg('late', 'دیررس', true)]);
++    expect(await repo.getSegments(s.id)).toHaveLength(0);
++  });
++});
+-- 
+2.43.0
+
