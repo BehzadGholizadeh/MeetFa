@@ -68,34 +68,52 @@ export function reopenSession(id: string) {
   });
 }
 
-/** حذف جلسه + همه segmentهایش در یک تراکنش */
-export async function deleteSession(id: string): Promise<void> {
+/**
+ * حذف جلسه + همه segmentهایش در یک تراکنش.
+ * جلسه active حذف نمی‌شود (خروجی false) — حتی اگر UI قدیمی دکمه را فعال نشان داده باشد
+ * (مثلاً جلسه‌ای که بعد از رندر لیست با reload دوباره active شده).
+ */
+export async function deleteSession(id: string): Promise<boolean> {
   const db = await getDB();
   const tx = db.transaction(['sessions', 'segments'], 'readwrite', STRICT);
+  const s = await tx.objectStore('sessions').get(id);
+  if (s?.status === 'active') {
+    await tx.done;
+    return false;
+  }
   const segStore = tx.objectStore('segments');
   for (const key of await segStore.index('bySession').getAllKeys(id)) await segStore.delete(key);
   await tx.objectStore('sessions').delete(id);
   await tx.done;
+  return true;
 }
 
 // ───────────── Segments ─────────────
 
-/** upsert دسته‌ای؛ شمارنده جلسه در همان تراکنش به‌روز می‌شود */
+/**
+ * upsert دسته‌ای؛ شمارنده جلسه در همان تراکنش به‌روز می‌شود.
+ * - جلسه وجود ندارد (حذف‌شده) ⇒ هیچ چیز نوشته نمی‌شود (جلوگیری از segment یتیم)
+ * - نسخه غیرنهایی دیررس، segment نهایی‌شده را بازنویسی نمی‌کند
+ */
 export async function upsertSegments(sessionId: string, segs: Segment[]): Promise<void> {
   if (segs.length === 0) return;
   const db = await getDB();
   const tx = db.transaction(['segments', 'sessions'], 'readwrite', STRICT);
+  const sStore = tx.objectStore('sessions');
+  const s = await sStore.get(sessionId);
+  if (!s) {
+    await tx.done;
+    return;
+  }
   const segStore = tx.objectStore('segments');
   let added = 0;
   for (const seg of segs) {
-    if (!(await segStore.getKey(seg.id))) added++;
+    const prev = await segStore.get(seg.id);
+    if (!prev) added++;
+    else if (prev.final && !seg.final) continue;
     await segStore.put({ ...seg, sessionId } satisfies StoredSegment);
   }
-  if (added) {
-    const sStore = tx.objectStore('sessions');
-    const s = await sStore.get(sessionId);
-    if (s) await sStore.put({ ...s, segmentCount: s.segmentCount + added });
-  }
+  if (added) await sStore.put({ ...s, segmentCount: s.segmentCount + added });
   await tx.done;
 }
 

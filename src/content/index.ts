@@ -38,11 +38,11 @@ function enter(code: string): void {
   observer.start();
 }
 
-function leave(): void {
+function leave(reason: 'left' | 'unload' = 'left'): void {
   observer?.stop();
   observer = null;
   currentCode = null;
-  send({ type: 'MEETING_ENDED' });
+  send({ type: 'MEETING_ENDED', reason });
 }
 
 function tick(): void {
@@ -72,6 +72,6 @@ function shutdown(): void {
   observer?.stop();
 }
 window.addEventListener('pagehide', () => {
-  if (currentCode) leave();
+  if (currentCode) leave('unload'); // بستن تب / reload ⇒ «قطع‌شده»، نه «پایان‌یافته»
 });
 tick();

@@ -6,7 +6,7 @@
 1. نصب **Node.js 20 LTS** از nodejs.org (گزینه‌های پیش‌فرض)
 2. استخراج پوشه `meetfa` → باز کردن PowerShell در همان پوشه
 3. `npm install`
-4. `npm test` (باید ۲۸ تست سبز شود)
+4. `npm test` (باید ۳۸ تست سبز شود: ۲۱ parser/tracker + ۷ IndexedDB + ۱۰ Service Worker)
 5. `npm run build` → پوشه `dist` ساخته می‌شود
 6. Chrome (نسخه ۱۱۶+) → `chrome://extensions` → روشن کردن **Developer mode**
 7. **Load unpacked** → انتخاب پوشه `dist`
@@ -40,7 +40,7 @@
 | 4 | «تغییر نام» → عنوان جدید → Enter | عنوان جدید بماند (Esc = انصراف) |
 | 5 | «حذف» → «بله، حذف شود» | جلسه از لیست حذف شود |
 | 6 | حذف جلسه «در حال ضبط» | دکمه غیرفعال |
-| 7 | **بستن تب** وسط جلسه | جلسه «قطع‌شده»؛ متن تا ~۲ ثانیه آخر موجود |
+| 7 | **بستن تب** وسط جلسه | جلسه «قطع‌شده» (نه «پایان‌یافته»)؛ متن تا ~۲ ثانیه آخر موجود |
 | 8 | **Reload تب** وسط جلسه و ورود دوباره (کمتر از ۵ دقیقه) | ادامه همان جلسه (جلسه جدید ساخته نشود) |
 | 9 | **کرش**: Task Manager ویندوز → End task روی Chrome وسط جلسه → باز کردن دوباره Chrome | جلسه «قطع‌شده» با متن ذخیره‌شده |
 | 10 | بستن کامل Chrome و باز کردن دوباره | همه جلسات و متن‌ها باقی باشند |
@@ -50,6 +50,8 @@
 - `sessions`: id, title, meetCode, startedAt, endedAt?, status (active / ended / interrupted), language?, segmentCount
 - `segments`: id, sessionId, speaker, text, startedAt, updatedAt, final — ایندکس `bySession`
 - نهایی‌ها فوری (durability: strict)، متن زنده هر ۲ ثانیه
+- قرارداد `endedAt`: خروج عادی و بستن/reload تب = زمان رویداد؛ کرش/بستن مرورگر = max(شروع جلسه، آخرین تغییر متن)
+- جلسه active در لایه داده هم قابل حذف نیست؛ نسخه غیرنهایی دیررس segment نهایی را بازنویسی نمی‌کند
 
 ## ساختار
 ```
@@ -59,7 +61,7 @@ src/sidepanel/    index.html · main.ts · style.css
 src/storage/      db.ts · repositories.ts
 src/sidepanel/    history.ts · segmentView.ts
 src/shared/       types.ts · messages.ts · status.ts · constants.ts
-tests/            segmentTracker.test.ts · fixtures.ts
+tests/            segmentTracker.test.ts · repositories.test.ts · serviceWorker.test.ts · fixtures.ts · chromeMock.ts
 spike/            dom-probe.js
 docs/             dom-spike.md
 ```

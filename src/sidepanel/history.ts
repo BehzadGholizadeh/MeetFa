@@ -77,7 +77,11 @@ function card(s: Session): HTMLElement {
     no.focus();
     no.onclick = () => confirmBox.replaceWith(actions);
     yes.onclick = async () => {
-      await deleteSession(s.id);
+      if (!(await deleteSession(s.id))) {
+        confirmBox.replaceChildren(el('span', 'meta', 'این جلسه دوباره در حال ضبط است و حذف نشد.'));
+        setTimeout(() => void refreshHistory(), 2000);
+        return;
+      }
       await refreshHistory();
     };
   };

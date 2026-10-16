@@ -109,11 +109,12 @@ async function handleContent(tabId: number, msg: ContentMessage): Promise<void> 
     case 'MEETING_ENDED':
       if (st.sessionId) {
         await flushLive(st.sessionId);
-        await endSession(st.sessionId, 'ended');
+        await endSession(st.sessionId, msg.reason === 'unload' ? 'interrupted' : 'ended');
         send({ type: 'SESSIONS_CHANGED' });
       }
       st.status = 'disconnected';
-      st.statusDetail = 'از جلسه خارج شدید — متن ذخیره شد';
+      st.statusDetail =
+        msg.reason === 'unload' ? 'صفحه بسته یا بارگذاری مجدد شد — متن ذخیره شد' : 'از جلسه خارج شدید — متن ذخیره شد';
       break;
     case 'STATUS':
       st.status = msg.status;

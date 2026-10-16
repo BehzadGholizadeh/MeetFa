@@ -3,7 +3,8 @@ import type { CaptureStatus, Segment, TabState } from './types';
 /** Content Script → Service Worker */
 export type ContentMessage =
   | { type: 'MEETING_STARTED'; meetCode: string }
-  | { type: 'MEETING_ENDED' }
+  /** left = خروج عادی از تماس؛ unload = بسته شدن/reload صفحه (pagehide) */
+  | { type: 'MEETING_ENDED'; reason?: 'left' | 'unload' }
   | { type: 'STATUS'; status: CaptureStatus; detail?: string }
   | { type: 'SEGMENT_UPSERT'; segment: Segment };
 

@@ -66,7 +66,10 @@ describe('IndexedDB — متن‌ها', () => {
     const b = await createSession('bbb-bbbb-bbb');
     await upsertSegments(a.id, [seg('a1', 'x', 1)]);
     await upsertSegments(b.id, [seg('b1', 'y', 1)]);
-    await deleteSession(a.id);
+    // جلسه active قابل حذف نیست (قاعده مرحله ۲، حالا در لایه داده هم اعمال می‌شود)
+    expect(await deleteSession(a.id)).toBe(false);
+    await endSession(a.id, 'ended');
+    expect(await deleteSession(a.id)).toBe(true);
     expect(await getSession(a.id)).toBeUndefined();
     expect(await getSegments(a.id)).toEqual([]);
     expect((await getSegments(b.id)).map((x) => x.id)).toEqual(['b1']);
