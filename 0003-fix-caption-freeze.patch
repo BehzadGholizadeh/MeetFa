@@ -1,0 +1,480 @@
+From efd19216376af93b94c48b356166b0a2f81d63d8 Mon Sep 17 00:00:00 2001
+From: "Claude (developer)" <dev@meetfa.local>
+Date: Fri, 16 Oct 2026 19:25:44 +0000
+Subject: [PATCH] fix(content): captions stop updating after a pause (stage
+ 2.1)
+
+Root cause (reproduced in DOM simulation, not yet confirmed in real Meet):
+SegmentTracker ignored every update to a block element once its segment
+was final. Meet keeps the same block element while the same speaker
+continues, so after >=4s silence (idle finalize) all further text of that
+block was dropped.
+
+- segmentTracker: continuation of a finalized block goes to a new segment
+  (final segments stay immutable); continuationAfter() handles growth,
+  head-trim and ASR tail revisions without duplicates
+- captionObserver: status reflects real text flow (capturing only when text
+  is recorded; silence => ready, never error); evidence-based error when Meet
+  shows new text but nothing is recorded for 3 scans; re-attach if a new
+  caption region replaces a still-connected old one; debug logs
+- sidepanel: last-received time; refresh hint after install/update
+- tests: 8 regression tests (6 fail on 9e7292c); docs/manual-test-captions.md
+---
+ README.md                      |   2 +-
+ docs/manual-test-captions.md   |  18 ++++
+ src/content/captionObserver.ts |  49 +++++++--
+ src/content/segmentTracker.ts  |  48 ++++++++-
+ src/shared/constants.ts        |   2 +
+ src/sidepanel/main.ts          |   8 +-
+ tests/captionFreeze.test.ts    | 180 +++++++++++++++++++++++++++++++++
+ 7 files changed, 290 insertions(+), 17 deletions(-)
+ create mode 100644 docs/manual-test-captions.md
+ create mode 100644 tests/captionFreeze.test.ts
+
+diff --git a/README.md b/README.md
+index e355ec0..f20ad73 100644
+--- a/README.md
++++ b/README.md
+@@ -6,7 +6,7 @@
+ 1. نصب **Node.js 20 LTS** از nodejs.org (گزینه‌های پیش‌فرض)
+ 2. استخراج پوشه `meetfa` → باز کردن PowerShell در همان پوشه
+ 3. `npm install`
+-4. `npm test` (باید ۴۱ تست سبز شود: ۲۱ parser/tracker + ۷ IndexedDB + ۱۳ Service Worker)
++4. `npm test` (باید ۴۹ تست سبز شود: ۲۱ parser/tracker + ۸ دریافت پیوسته/وضعیت + ۷ IndexedDB + ۱۳ Service Worker)
+ 5. `npm run build` → پوشه `dist` ساخته می‌شود
+ 6. Chrome (نسخه ۱۱۶+) → `chrome://extensions` → روشن کردن **Developer mode**
+ 7. **Load unpacked** → انتخاب پوشه `dist`
+diff --git a/docs/manual-test-captions.md b/docs/manual-test-captions.md
+new file mode 100644
+index 0000000..8ef2939
+--- /dev/null
++++ b/docs/manual-test-captions.md
+@@ -0,0 +1,18 @@
++# تست دستی — دریافت پیوسته زیرنویس (Stage 2.1)
++
++پیش‌نیاز: `npm ci && npm run build` → `chrome://extensions` → Reload افزونه → **refresh تب Meet** (بعد از هر Reload افزونه الزامی است).
++
++| # | اقدام | انتظار |
++|---|---|---|
++| 1 | ورود به جلسه، CC روشن، Side Panel باز | «آماده» + «زیرنویس روشن است؛ منتظر صحبت…» |
++| 2 | ۲۰ ثانیه صحبت پیوسته | «در حال دریافت»؛ متن هم‌زمان با Meet رشد کند |
++| 3 | **۱۰ ثانیه سکوت**، سپس ادامه صحبت (همان گوینده) | در سکوت: «آماده»؛ بعد از ادامه: متن تازه در پنل ظاهر شود (بخش جدید زیر بخش قبلی) |
++| 4 | مرحله ۳ را ۵ بار تکرار کنید | هر بار متن تازه ثبت شود؛ بدون تکرار جمله‌های قبلی |
++| 5 | صحبت طولانی ۲ دقیقه بدون مکث | متن قطع نشود؛ ابتدای جمله‌ها حذف نشود |
++| 6 | نفر دوم صحبت کند | بخش جدید با نام گوینده دوم |
++| 7 | CC را خاموش و دوباره روشن کنید، سپس صحبت | دریافت ادامه یابد |
++| 8 | زیر «آخرین متن دریافتی» | ساعت با هر متن تازه جلو برود |
++| 9 | اگر وضعیت «خطا: متن زیرنویس Meet تغییر می‌کند ولی در MeetFa ثبت نمی‌شود» دیده شد | باگ باقی‌مانده؛ مرحله ۱۰ را اجرا و نتیجه را گزارش کنید |
++| 10 | عیب‌یابی: F12 روی تب Meet → Console → فهرست context را روی MeetFa بگذارید → Verbose را فعال کنید | لاگ‌های `[MeetFa] status …` و `caption region attached/detached` |
++
++**معیار پذیرش:** مراحل ۳، ۴ و ۵ بدون توقف متن. تا تأیید این مراحل، Stage 2.1 تکمیل‌شده نیست.
+diff --git a/src/content/captionObserver.ts b/src/content/captionObserver.ts
+index 482a523..a3a60fb 100644
+--- a/src/content/captionObserver.ts
++++ b/src/content/captionObserver.ts
+@@ -1,8 +1,8 @@
+ import type { CaptureStatus, Segment } from '../shared/types';
+-import { HEALTH_TIMEOUT_MS, UPSERT_THROTTLE_MS } from '../shared/constants';
++import { FINALIZE_IDLE_MS, HEALTH_TIMEOUT_MS, STALL_SCANS, UPSERT_THROTTLE_MS } from '../shared/constants';
+ import { findCaptionRegion, isCaptionsButtonOn } from './selectors';
+ import { parseCaptionRegion, regionHasText } from './captionParser';
+-import { SegmentTracker } from './segmentTracker';
++import { continuationAfter, SegmentTracker } from './segmentTracker';
+ 
+ export interface ObserverCallbacks {
+   onSegments(segs: Segment[]): void;
+@@ -14,7 +14,6 @@ export interface ObserverCallbacks {
+  * Observer فقط روی خود ناحیه است (نه کل body) تا سربار کم باشد.
+  */
+ export class CaptionObserver {
+-  private tracker = new SegmentTracker();
+   private region: Element | null = null;
+   private mo: MutationObserver | null = null;
+   private pollTimer: number | undefined;
+@@ -24,8 +23,17 @@ export class CaptionObserver {
+   private unparsedSince: number | null = null;
+   private pending = new Map<string, Segment>();
+   private flushTimer: number | undefined;
++  /** آخرین زمانی که متن تازه واقعاً ثبت شد */
++  private lastChangeAt = 0;
++  /** متن کل ناحیه در اسکن قبلی (برای تشخیص «Meet متن تازه نشان داد») */
++  private lastRegionText = '';
++  /** تعداد اسکن‌های پیاپی که Meet متن تازه نشان داده ولی چیزی ثبت نشده */
++  private stallScans = 0;
+ 
+-  constructor(private cb: ObserverCallbacks) {}
++  constructor(
++    private cb: ObserverCallbacks,
++    private tracker: SegmentTracker = new SegmentTracker(),
++  ) {}
+ 
+   start(): void {
+     this.setStatus('ready', 'زیرنویس (CC) را در Meet روشن کنید');
+@@ -43,22 +51,26 @@ export class CaptionObserver {
+   private poll(): void {
+     // ناحیه ممکن است با روشن/خاموش کردن CC یا re-render عوض شود
+     if (this.region && !this.region.isConnected) this.detach();
+-    if (!this.region) {
+-      const r = findCaptionRegion();
+-      if (r) this.attach(r);
+-    }
++    const r = findCaptionRegion();
++    // ناحیه فعال عوض شده ولی قدیمی هنوز در DOM است (پنهان / بی‌برچسب)
++    if (this.region && r && r !== this.region) this.detach();
++    if (!this.region && r) this.attach(r);
+     this.queue(this.tracker.tick());
+     this.health();
+   }
+ 
+   private attach(region: Element): void {
++    console.debug('[MeetFa] caption region attached');
+     this.region = region;
++    this.lastRegionText = '';
++    this.stallScans = 0;
+     this.mo = new MutationObserver(() => this.scheduleScan());
+     this.mo.observe(region, { childList: true, subtree: true, characterData: true });
+     this.scheduleScan();
+   }
+ 
+   private detach(): void {
++    if (this.region) console.debug('[MeetFa] caption region detached');
+     this.mo?.disconnect();
+     this.mo = null;
+     this.region = null;
+@@ -79,8 +91,19 @@ export class CaptionObserver {
+     const blocks = parseCaptionRegion(this.region);
+     if (blocks.length > 0) {
+       this.unparsedSince = null;
+-      this.queue(this.tracker.update(blocks));
+-      this.setStatus('capturing');
++      const changes = this.tracker.update(blocks);
++      this.queue(changes);
++      const regionText = blocks.map((b) => b.text).join('\n');
++      const meetShowedNewText = continuationAfter(this.lastRegionText, regionText) !== '';
++      this.lastRegionText = regionText;
++      if (changes.length > 0) {
++        this.lastChangeAt = Date.now();
++        this.stallScans = 0;
++        this.setStatus('capturing');
++      } else if (meetShowedNewText && ++this.stallScans >= STALL_SCANS) {
++        // شاهد مستقیم، نه گذشت زمان: Meet متن تازه نشان می‌دهد و MeetFa ثبتش نمی‌کند
++        this.setStatus('error', 'متن زیرنویس Meet تغییر می‌کند ولی در MeetFa ثبت نمی‌شود');
++      }
+     } else if (regionHasText(this.region)) {
+       this.unparsedSince ??= Date.now();
+     }
+@@ -99,7 +122,10 @@ export class CaptionObserver {
+     }
+     if (!this.region) {
+       this.setStatus('ready', 'زیرنویس (CC) را در Meet روشن کنید');
+-    } else if (!this.lastStatus.startsWith('capturing')) {
++    } else if (this.stallScans >= STALL_SCANS) {
++      // خطای ثبت‌نشدن تا وقتی متن دوباره ثبت شود باقی می‌ماند
++    } else if (!this.lastStatus.startsWith('capturing') || now - this.lastChangeAt >= FINALIZE_IDLE_MS) {
++      // سکوت خطا نیست: فقط «آماده» نمایش داده می‌شود
+       this.setStatus('ready', 'زیرنویس روشن است؛ منتظر صحبت…');
+     }
+   }
+@@ -108,6 +134,7 @@ export class CaptionObserver {
+     const key = `${status}|${detail ?? ''}`;
+     if (key === this.lastStatus) return;
+     this.lastStatus = key;
++    console.debug('[MeetFa] status', status, detail ?? '');
+     this.cb.onStatus(status, detail);
+   }
+ 
+diff --git a/src/content/segmentTracker.ts b/src/content/segmentTracker.ts
+index 3e7e135..870be79 100644
+--- a/src/content/segmentTracker.ts
++++ b/src/content/segmentTracker.ts
+@@ -31,8 +31,37 @@ export function mergeText(prev: string, next: string): string {
+   return `${prev} ${next}`;
+ }
+ 
++/**
++ * متن جدیدی که بعد از prevRaw در nextRaw آمده (برای ادامه صحبت در بلوکی که قبلاً نهایی شده).
++ * '' یعنی محتوای تازه‌ای نیست (همان متن، اصلاح جزئی، یا فقط حذف ابتدا).
++ */
++export function continuationAfter(prevRaw: string, nextRaw: string): string {
++  if (!prevRaw) return nextRaw;
++  if (!nextRaw || nextRaw === prevRaw || prevRaw.includes(nextRaw)) return '';
++  if (nextRaw.startsWith(prevRaw)) return nextRaw.slice(prevRaw.length).trim();
++  // انتهای متن قبلی هنوز دیده می‌شود (ممکن است ابتدایش حذف شده باشد)
++  const tail = prevRaw.slice(-Math.min(ANCHOR_LEN, prevRaw.length));
++  const idx = nextRaw.lastIndexOf(tail);
++  if (tail.length >= 6 && idx >= 0) return nextRaw.slice(idx + tail.length).trim();
++  // اصلاح انتهای متن قبلی توسط ASR: از آخرین مرز کلمه در پیشوند مشترک
++  let cp = 0;
++  while (cp < Math.min(prevRaw.length, nextRaw.length) && prevRaw[cp] === nextRaw[cp]) cp++;
++  if (cp >= prevRaw.length * 0.6) {
++    const cut = nextRaw.lastIndexOf(' ', cp);
++    const rest = nextRaw.slice(cut < 0 ? cp : cut).trim();
++    // اگر فقط کلمات آخر اصلاح شده‌اند و چیزی اضافه نشده، تازه حساب نمی‌شود
++    return nextRaw.length > prevRaw.length ? rest : '';
++  }
++  // متن کاملاً متفاوت در همان عنصر ⇒ همه‌اش تازه است
++  return nextRaw;
++}
++
+ interface Tracked {
+   seg: Segment;
++  /** آخرین متن خام بلوک در DOM */
++  raw: string;
++  /** متن خام بلوک در لحظه نهایی شدن segment قبلی همین بلوک (برای جدا کردن ادامه) */
++  base: string | null;
+ }
+ 
+ let counter = 0;
+@@ -55,10 +84,23 @@ export class SegmentTracker {
+       const existing = this.byEl.get(b.el);
+       if (!existing) {
+         const seg: Segment = { id: newId(), speaker: b.speaker, text: b.text, startedAt: t, updatedAt: t, final: false };
+-        this.byEl.set(b.el, { seg });
++        this.byEl.set(b.el, { seg, raw: b.text, base: null });
+         changed.push({ ...seg });
+-      } else if (!existing.seg.final) {
+-        const merged = mergeText(existing.seg.text, b.text);
++      } else if (existing.seg.final) {
++        // Meet همان عنصر بلوک را برای ادامه صحبت همان گوینده نگه می‌دارد.
++        // segment نهایی تغییر نمی‌کند؛ ادامه به یک segment تازه می‌رود.
++        const cont = continuationAfter(existing.raw, b.text);
++        if (cont) {
++          const seg: Segment = { id: newId(), speaker: b.speaker, text: cont, startedAt: t, updatedAt: t, final: false };
++          this.byEl.set(b.el, { seg, raw: b.text, base: existing.raw });
++          changed.push({ ...seg });
++        } else {
++          existing.raw = b.text;
++        }
++      } else {
++        const visible = existing.base !== null ? continuationAfter(existing.base, b.text) || existing.seg.text : b.text;
++        const merged = mergeText(existing.seg.text, visible);
++        existing.raw = b.text;
+         if (merged !== existing.seg.text || b.speaker !== existing.seg.speaker) {
+           existing.seg.text = merged;
+           existing.seg.speaker = b.speaker;
+diff --git a/src/shared/constants.ts b/src/shared/constants.ts
+index d141664..8f4b7cb 100644
+--- a/src/shared/constants.ts
++++ b/src/shared/constants.ts
+@@ -14,3 +14,5 @@ export const LEAVE_DEBOUNCE_MS = 3000;
+ export const LIVE_PERSIST_MS = 2000;
+ /** reload / بازگشت به همان جلسه در همان تب تا این مدت ⇒ ادامه همان جلسه ذخیره‌شده */
+ export const RESUME_WINDOW_MS = 5 * 60 * 1000;
++/** اسکن‌های پیاپی «Meet متن تازه نشان داد ولی چیزی ثبت نشد» تا اعلام خطا */
++export const STALL_SCANS = 3;
+diff --git a/src/sidepanel/main.ts b/src/sidepanel/main.ts
+index 880121f..c30aecd 100644
+--- a/src/sidepanel/main.ts
++++ b/src/sidepanel/main.ts
+@@ -1,7 +1,7 @@
+ import type { AnyMessage, PanelRequest } from '../shared/messages';
+ import type { TabState } from '../shared/types';
+ import { STATUS_LABEL } from '../shared/status';
+-import { segmentView } from './segmentView';
++import { segmentView, timeFmt } from './segmentView';
+ import { refreshHistory } from './history';
+ 
+ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+@@ -45,8 +45,12 @@ function renderStatus(st: TabState | null): void {
+   const status = st?.status ?? 'idle';
+   statusEl.dataset.status = status;
+   $('status-label').textContent = STATUS_LABEL[status];
++  const idleHint =
++    'یک جلسه Google Meet را در این تب باز کنید. اگر در جلسه هستید و افزونه تازه نصب یا به‌روز شده، صفحه Meet را یک بار refresh کنید.';
++  const last = st?.segments.reduce((m, x) => Math.max(m, x.updatedAt), 0) ?? 0;
++  const lastText = last && status !== 'idle' ? `آخرین متن دریافتی: ${timeFmt.format(last)}` : '';
+   $('status-detail').textContent =
+-    st?.statusDetail ?? (status === 'idle' ? 'یک جلسه Google Meet را در این تب باز کنید' : '');
++    [st?.statusDetail ?? (status === 'idle' ? idleHint : ''), lastText].filter(Boolean).join(' · ');
+   $('meet').textContent = st?.meetCode ?? '';
+ }
+ 
+diff --git a/tests/captionFreeze.test.ts b/tests/captionFreeze.test.ts
+new file mode 100644
+index 0000000..e2116b4
+--- /dev/null
++++ b/tests/captionFreeze.test.ts
+@@ -0,0 +1,180 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { SegmentTracker } from '../src/content/segmentTracker';
++import { CaptionObserver } from '../src/content/captionObserver';
++import { parseCaptionRegion } from '../src/content/captionParser';
++import { FINALIZE_IDLE_MS } from '../src/shared/constants';
++import type { CaptureStatus, Segment } from '../src/shared/types';
++import { makeSpikeRegion, spikeBlocks } from './fixtures';
++
++/** متن زیرنویس بلوک iام در fixture ساختار واقعی */
++const textEl = (i: number) => spikeBlocks()[i].querySelector('.ygicle')!;
++/** متن کل جلسه از دید کاربر: ترکیب همه segmentهای ارسال‌شده (آخرین نسخه هر id) */
++function transcript(all: Segment[]): string {
++  const m = new Map<string, Segment>();
++  all.forEach((s) => m.set(s.id, s));
++  return [...m.values()].sort((a, b) => a.startedAt - b.startedAt).map((s) => s.text).join(' | ');
++}
++
++describe('بازتولید توقف دریافت: ادامه صحبت در همان بلوک بعد از سکوت', () => {
++  it('Tracker: بعد از نهایی شدن با سکوت، متن جدید همان بلوک از دست نمی‌رود', () => {
++    let t = 0;
++    const tr = new SegmentTracker(() => t);
++    const r = makeSpikeRegion();
++    spikeBlocks()[0].remove(); // یک گوینده، یک بلوک (سناریوی تست دستی)
++    const out: Segment[] = [];
++    out.push(...tr.update(parseCaptionRegion(r)));
++
++    t += FINALIZE_IDLE_MS;
++    out.push(...tr.tick()); // سکوت ⇒ نهایی
++    expect(out.at(-1)?.final).toBe(true);
++
++    t += 500;
++    textEl(0).textContent = 'ممنون، گزارش Q3 آماده است و فردا ارسال میشه';
++    const changed = tr.update(parseCaptionRegion(r));
++    out.push(...changed);
++    expect(changed.length).toBeGreaterThan(0);
++    expect(transcript(out)).toContain('فردا ارسال میشه');
++    // بخش نهایی‌شده تکرار نمی‌شود
++    expect(transcript(out).match(/گزارش Q3/g)).toHaveLength(1);
++  });
++
++  it('Tracker: چند چرخه سکوت/ادامه، و حذف ابتدای متن (scroll) بدون تکرار', () => {
++    let t = 0;
++    const tr = new SegmentTracker(() => t);
++    const r = makeSpikeRegion();
++    spikeBlocks()[0].remove();
++    const out: Segment[] = [];
++    const step = (text: string, pause = false) => {
++      t += 300;
++      textEl(0).textContent = text;
++      out.push(...tr.update(parseCaptionRegion(r)));
++      if (pause) {
++        t += FINALIZE_IDLE_MS;
++        out.push(...tr.tick());
++      }
++    };
++    out.push(...tr.update(parseCaptionRegion(r)));
++    step('ممنون، گزارش Q3 آماده است', true);
++    step('ممنون، گزارش Q3 آماده است. بودجه هم تأیید شد', true);
++    step('ممنون، گزارش Q3 آماده است. بودجه هم تأیید شد. جلسه بعد شنبه', true);
++    // Meet ابتدای بلوک بلند را حذف می‌کند
++    step('بودجه هم تأیید شد. جلسه بعد شنبه است. لطفاً حضور داشته باشید');
++    const text = transcript(out);
++    for (const w of ['گزارش Q3', 'بودجه هم تأیید شد', 'جلسه بعد شنبه', 'لطفاً حضور داشته باشید']) {
++      expect(text.match(new RegExp(w, 'g'))?.length, w).toBe(1);
++    }
++  });
++
++  it('Tracker: اصلاح متن نهایی‌شده بدون محتوای جدید ⇒ segment تکراری ساخته نمی‌شود', () => {
++    let t = 0;
++    const tr = new SegmentTracker(() => t);
++    const r = makeSpikeRegion();
++    spikeBlocks()[0].remove();
++    tr.update(parseCaptionRegion(r));
++    t += FINALIZE_IDLE_MS;
++    tr.tick();
++    textEl(0).textContent = 'ممنون، گزارش Q3 آماده است'; // همان متن
++    expect(tr.update(parseCaptionRegion(r))).toHaveLength(0);
++  });
++});
++
++describe('CaptionObserver (یکپارچه با DOM، تایمر قطعی)', () => {
++  let segs: Segment[];
++  let statuses: [CaptureStatus, string | undefined][];
++  let obs: CaptionObserver;
++
++  beforeEach(() => {
++    vi.useFakeTimers();
++    segs = [];
++    statuses = [];
++  });
++  afterEach(() => {
++    obs?.stop();
++    vi.useRealTimers();
++  });
++
++  const start = (tracker?: SegmentTracker) => {
++    obs = new CaptionObserver(
++      { onSegments: (s) => segs.push(...s), onStatus: (st, d) => statuses.push([st, d]) },
++      tracker,
++    );
++    obs.start();
++  };
++  const lastStatus = () => statuses.at(-1)?.[0];
++
++  it('ادامه صحبت بعد از سکوت ۵ ثانیه‌ای به پنل می‌رسد (همان علامت گزارش تست دستی)', async () => {
++    makeSpikeRegion();
++    spikeBlocks()[0].remove();
++    start();
++    await vi.advanceTimersByTimeAsync(500);
++    expect(transcript(segs)).toContain('گزارش Q3');
++
++    await vi.advanceTimersByTimeAsync(5000); // سکوت
++    textEl(0).textContent = 'ممنون، گزارش Q3 آماده است و فردا ارسال میشه';
++    await vi.advanceTimersByTimeAsync(1000);
++    expect(transcript(segs)).toContain('فردا ارسال میشه');
++  });
++
++  it('جایگزینی کامل ناحیه زیرنویس توسط Meet ⇒ observer به ناحیه جدید وصل می‌شود', async () => {
++    makeSpikeRegion();
++    start();
++    await vi.advanceTimersByTimeAsync(500);
++    // Meet ناحیه را دوباره می‌سازد (old حذف، new اضافه)
++    makeSpikeRegion();
++    textEl(1).textContent = 'متن بعد از ساخت دوباره ناحیه';
++    await vi.advanceTimersByTimeAsync(1500);
++    expect(transcript(segs)).toContain('متن بعد از ساخت دوباره ناحیه');
++  });
++
++  it('ناحیه جدید در حالی که ناحیه قدیمی هنوز در DOM است ⇒ اتصال به ناحیه فعال', async () => {
++    const old = makeSpikeRegion();
++    start();
++    await vi.advanceTimersByTimeAsync(500);
++    old.removeAttribute('aria-label'); // قدیمی پنهان/بی‌برچسب اما متصل
++    const fresh = document.createElement('div');
++    fresh.innerHTML = old.outerHTML;
++    const region = fresh.firstElementChild as HTMLElement;
++    region.setAttribute('aria-label', 'Captions');
++    region.querySelectorAll('.ygicle')[1].textContent = 'متن در ناحیه تازه';
++    document.body.appendChild(region);
++    await vi.advanceTimersByTimeAsync(1500);
++    expect(transcript(segs)).toContain('متن در ناحیه تازه');
++  });
++
++  it('وضعیت: دریافت → «در حال دریافت»، سکوت → «آماده/منتظر صحبت» (نه خطا)', async () => {
++    makeSpikeRegion();
++    start();
++    await vi.advanceTimersByTimeAsync(500);
++    expect(lastStatus()).toBe('capturing');
++    await vi.advanceTimersByTimeAsync(60_000); // یک دقیقه سکوت
++    expect(lastStatus()).toBe('ready');
++    expect(statuses.some(([s]) => s === 'error')).toBe(false);
++    textEl(1).textContent = 'دوباره صحبت';
++    await vi.advanceTimersByTimeAsync(500);
++    expect(lastStatus()).toBe('capturing');
++  });
++
++  it('وضعیت: متن Meet رشد می‌کند ولی چیزی ثبت نمی‌شود ⇒ خطای قابل‌تشخیص؛ با بازگشت دریافت، رفع', async () => {
++    makeSpikeRegion();
++    let broken = true;
++    const real = new SegmentTracker();
++    const stub = Object.assign(Object.create(SegmentTracker.prototype), {
++      update: (b: Parameters<SegmentTracker['update']>[0]) => (broken ? [] : real.update(b)),
++      tick: () => [],
++      flushAll: () => [],
++    }) as SegmentTracker;
++    start(stub);
++    for (let i = 0; i < 4; i++) {
++      textEl(1).textContent += ` کلمه${i}`;
++      await vi.advanceTimersByTimeAsync(400);
++    }
++    await vi.advanceTimersByTimeAsync(1000);
++    expect(lastStatus()).toBe('error');
++    expect(statuses.at(-1)?.[1]).toContain('ثبت نمی‌شود');
++
++    broken = false;
++    textEl(1).textContent += ' ادامه';
++    await vi.advanceTimersByTimeAsync(1000);
++    expect(lastStatus()).toBe('capturing');
++  });
++});
+-- 
+2.43.0
+

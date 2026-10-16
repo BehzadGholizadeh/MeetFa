@@ -14,3 +14,5 @@ export const LEAVE_DEBOUNCE_MS = 3000;
 export const LIVE_PERSIST_MS = 2000;
 /** reload / بازگشت به همان جلسه در همان تب تا این مدت ⇒ ادامه همان جلسه ذخیره‌شده */
 export const RESUME_WINDOW_MS = 5 * 60 * 1000;
+/** اسکن‌های پیاپی «Meet متن تازه نشان داد ولی چیزی ثبت نشد» تا اعلام خطا */
+export const STALL_SCANS = 3;

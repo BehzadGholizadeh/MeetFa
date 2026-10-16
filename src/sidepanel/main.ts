@@ -1,7 +1,7 @@
 import type { AnyMessage, PanelRequest } from '../shared/messages';
 import type { TabState } from '../shared/types';
 import { STATUS_LABEL } from '../shared/status';
-import { segmentView } from './segmentView';
+import { segmentView, timeFmt } from './segmentView';
 import { refreshHistory } from './history';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -45,8 +45,12 @@ function renderStatus(st: TabState | null): void {
   const status = st?.status ?? 'idle';
   statusEl.dataset.status = status;
   $('status-label').textContent = STATUS_LABEL[status];
+  const idleHint =
+    'یک جلسه Google Meet را در این تب باز کنید. اگر در جلسه هستید و افزونه تازه نصب یا به‌روز شده، صفحه Meet را یک بار refresh کنید.';
+  const last = st?.segments.reduce((m, x) => Math.max(m, x.updatedAt), 0) ?? 0;
+  const lastText = last && status !== 'idle' ? `آخرین متن دریافتی: ${timeFmt.format(last)}` : '';
   $('status-detail').textContent =
-    st?.statusDetail ?? (status === 'idle' ? 'یک جلسه Google Meet را در این تب باز کنید' : '');
+    [st?.statusDetail ?? (status === 'idle' ? idleHint : ''), lastText].filter(Boolean).join(' · ');
   $('meet').textContent = st?.meetCode ?? '';
 }
 

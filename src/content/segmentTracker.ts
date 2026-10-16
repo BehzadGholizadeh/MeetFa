@@ -31,8 +31,37 @@ export function mergeText(prev: string, next: string): string {
   return `${prev} ${next}`;
 }
 
+/**
+ * متن جدیدی که بعد از prevRaw در nextRaw آمده (برای ادامه صحبت در بلوکی که قبلاً نهایی شده).
+ * '' یعنی محتوای تازه‌ای نیست (همان متن، اصلاح جزئی، یا فقط حذف ابتدا).
+ */
+export function continuationAfter(prevRaw: string, nextRaw: string): string {
+  if (!prevRaw) return nextRaw;
+  if (!nextRaw || nextRaw === prevRaw || prevRaw.includes(nextRaw)) return '';
+  if (nextRaw.startsWith(prevRaw)) return nextRaw.slice(prevRaw.length).trim();
+  // انتهای متن قبلی هنوز دیده می‌شود (ممکن است ابتدایش حذف شده باشد)
+  const tail = prevRaw.slice(-Math.min(ANCHOR_LEN, prevRaw.length));
+  const idx = nextRaw.lastIndexOf(tail);
+  if (tail.length >= 6 && idx >= 0) return nextRaw.slice(idx + tail.length).trim();
+  // اصلاح انتهای متن قبلی توسط ASR: از آخرین مرز کلمه در پیشوند مشترک
+  let cp = 0;
+  while (cp < Math.min(prevRaw.length, nextRaw.length) && prevRaw[cp] === nextRaw[cp]) cp++;
+  if (cp >= prevRaw.length * 0.6) {
+    const cut = nextRaw.lastIndexOf(' ', cp);
+    const rest = nextRaw.slice(cut < 0 ? cp : cut).trim();
+    // اگر فقط کلمات آخر اصلاح شده‌اند و چیزی اضافه نشده، تازه حساب نمی‌شود
+    return nextRaw.length > prevRaw.length ? rest : '';
+  }
+  // متن کاملاً متفاوت در همان عنصر ⇒ همه‌اش تازه است
+  return nextRaw;
+}
+
 interface Tracked {
   seg: Segment;
+  /** آخرین متن خام بلوک در DOM */
+  raw: string;
+  /** متن خام بلوک در لحظه نهایی شدن segment قبلی همین بلوک (برای جدا کردن ادامه) */
+  base: string | null;
 }
 
 let counter = 0;
@@ -55,10 +84,23 @@ export class SegmentTracker {
       const existing = this.byEl.get(b.el);
       if (!existing) {
         const seg: Segment = { id: newId(), speaker: b.speaker, text: b.text, startedAt: t, updatedAt: t, final: false };
-        this.byEl.set(b.el, { seg });
+        this.byEl.set(b.el, { seg, raw: b.text, base: null });
         changed.push({ ...seg });
-      } else if (!existing.seg.final) {
-        const merged = mergeText(existing.seg.text, b.text);
+      } else if (existing.seg.final) {
+        // Meet همان عنصر بلوک را برای ادامه صحبت همان گوینده نگه می‌دارد.
+        // segment نهایی تغییر نمی‌کند؛ ادامه به یک segment تازه می‌رود.
+        const cont = continuationAfter(existing.raw, b.text);
+        if (cont) {
+          const seg: Segment = { id: newId(), speaker: b.speaker, text: cont, startedAt: t, updatedAt: t, final: false };
+          this.byEl.set(b.el, { seg, raw: b.text, base: existing.raw });
+          changed.push({ ...seg });
+        } else {
+          existing.raw = b.text;
+        }
+      } else {
+        const visible = existing.base !== null ? continuationAfter(existing.base, b.text) || existing.seg.text : b.text;
+        const merged = mergeText(existing.seg.text, visible);
+        existing.raw = b.text;
         if (merged !== existing.seg.text || b.speaker !== existing.seg.speaker) {
           existing.seg.text = merged;
           existing.seg.speaker = b.speaker;
