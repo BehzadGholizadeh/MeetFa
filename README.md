@@ -6,7 +6,7 @@
 1. نصب **Node.js 20 LTS** از nodejs.org (گزینه‌های پیش‌فرض)
 2. استخراج پوشه `meetfa` → باز کردن PowerShell در همان پوشه
 3. `npm install`
-4. `npm test` (باید ۳۸ تست سبز شود: ۲۱ parser/tracker + ۷ IndexedDB + ۱۰ Service Worker)
+4. `npm test` (باید ۴۱ تست سبز شود: ۲۱ parser/tracker + ۷ IndexedDB + ۱۳ Service Worker)
 5. `npm run build` → پوشه `dist` ساخته می‌شود
 6. Chrome (نسخه ۱۱۶+) → `chrome://extensions` → روشن کردن **Developer mode**
 7. **Load unpacked** → انتخاب پوشه `dist`

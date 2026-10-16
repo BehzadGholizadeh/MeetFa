@@ -1,0 +1,338 @@
+From 234fb4f3b4a55e3660fccee48df1daf25045170d Mon Sep 17 00:00:00 2001
+From: "Claude (developer)" <dev@meetfa.local>
+Date: Fri, 16 Oct 2026 18:38:12 +0000
+Subject: [PATCH] test(sw): replace sleep-based settling with deterministic
+ queue drain
+
+Root causes of intermittent Service Worker test failures:
+1. Tests waited a fixed settle(60ms) for the SW serial queue; under cold
+   start / parallel workers on a loaded CPU the queue (~20-30ms idle)
+   was still mid-processing (observed: active, segmentCount 0).
+2. 'different meet code' asserted list order, but both sessions can share
+   the same startedAt millisecond; tie order is undefined (random UUID key).
+
+Changes:
+- serviceWorker.ts: export whenIdle() (awaits existing chain; no behavior change)
+- tests: await sw.whenIdle() instead of sleeps; fake setTimeout for the
+  LIVE_PERSIST_MS boundary; SW restart clears old listeners
+- regression: slow storage (150ms) proves fixed sleep is insufficient and
+  whenIdle is; whenIdle covers work enqueued while waiting; same-ms sessions
+- README: test count 41
+---
+ README.md                       |   2 +-
+ src/background/serviceWorker.ts |  13 ++++
+ tests/chromeMock.ts             |  25 +++++--
+ tests/serviceWorker.test.ts     | 121 +++++++++++++++++++++++++-------
+ 4 files changed, 128 insertions(+), 33 deletions(-)
+
+diff --git a/README.md b/README.md
+index ca70c00..e355ec0 100644
+--- a/README.md
++++ b/README.md
+@@ -6,7 +6,7 @@
+ 1. نصب **Node.js 20 LTS** از nodejs.org (گزینه‌های پیش‌فرض)
+ 2. استخراج پوشه `meetfa` → باز کردن PowerShell در همان پوشه
+ 3. `npm install`
+-4. `npm test` (باید ۳۸ تست سبز شود: ۲۱ parser/tracker + ۷ IndexedDB + ۱۰ Service Worker)
++4. `npm test` (باید ۴۱ تست سبز شود: ۲۱ parser/tracker + ۷ IndexedDB + ۱۳ Service Worker)
+ 5. `npm run build` → پوشه `dist` ساخته می‌شود
+ 6. Chrome (نسخه ۱۱۶+) → `chrome://extensions` → روشن کردن **Developer mode**
+ 7. **Load unpacked** → انتخاب پوشه `dist`
+diff --git a/src/background/serviceWorker.ts b/src/background/serviceWorker.ts
+index 838d99d..087cc6a 100644
+--- a/src/background/serviceWorker.ts
++++ b/src/background/serviceWorker.ts
+@@ -20,6 +20,19 @@ function enqueue(fn: () => Promise<unknown>): Promise<unknown> {
+   return chain;
+ }
+ 
++/**
++ * تا خالی شدن کامل صف سریال صبر می‌کند (شامل کارهایی که حین انتظار اضافه شوند).
++ * در تولید استفاده نمی‌شود؛ سیگنال قطعی «پایان پردازش» برای تست‌ها.
++ * رفتار SW را تغییر نمی‌دهد: فقط زنجیره موجود را await می‌کند.
++ */
++export async function whenIdle(): Promise<void> {
++  let observed: Promise<unknown>;
++  do {
++    observed = chain;
++    await observed;
++  } while (observed !== chain);
++}
++
+ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+ 
+ // ───────────── Tab state ─────────────
+diff --git a/tests/chromeMock.ts b/tests/chromeMock.ts
+index 240744d..a942dcc 100644
+--- a/tests/chromeMock.ts
++++ b/tests/chromeMock.ts
+@@ -1,11 +1,18 @@
+ /** شبیه‌ساز حداقلی API کروم برای تست Service Worker (بدون مرورگر) */
+ type Listener = (...args: any[]) => any;
+ 
+-export function installChromeMock() {
++export interface ChromeMockOptions {
++  /** تأخیر مصنوعی (ms) برای chrome.storage.session.get — شبیه‌سازی CPU کند / رقابت worker */
++  storageDelayMs?: number;
++}
++
++export function installChromeMock(opts: ChromeMockOptions = {}) {
+   const session: Record<string, unknown> = {};
+   const listeners = { message: [] as Listener[], removed: [] as Listener[], updated: [] as Listener[] };
+   const sent: any[] = [];
+   const clone = <T>(v: T): T => structuredClone(v);
++  const delay = () =>
++    opts.storageDelayMs ? new Promise<void>((r) => setTimeout(r, opts.storageDelayMs)) : Promise.resolve();
+ 
+   (globalThis as any).chrome = {
+     sidePanel: { setPanelBehavior: () => Promise.resolve() },
+@@ -15,8 +22,10 @@ export function installChromeMock() {
+     },
+     storage: {
+       session: {
+-        get: async (k: string | null) =>
+-          k === null ? clone(session) : k in session ? { [k]: clone(session[k]) } : {},
++        get: async (k: string | null) => {
++          await delay();
++          return k === null ? clone(session) : k in session ? { [k]: clone(session[k]) } : {};
++        },
+         set: async (o: Record<string, unknown>) => void Object.assign(session, clone(o)),
+         remove: async (k: string) => void delete session[k],
+       },
+@@ -34,8 +43,12 @@ export function installChromeMock() {
+     fromTab: (tabId: number, msg: unknown) => listeners.message.forEach((f) => f(msg, { tab: { id: tabId } }, () => {})),
+     closeTab: (tabId: number) => listeners.removed.forEach((f) => f(tabId, {})),
+     reloadTab: (tabId: number) => listeners.updated.forEach((f) => f(tabId, { status: 'loading' })),
++    /** SW قبلی مرده است: listenerهایش نباید رویداد بگیرند (شبیه‌سازی kill/restart) */
++    resetListeners: () => {
++      listeners.message.length = 0;
++      listeners.removed.length = 0;
++      listeners.updated.length = 0;
++    },
++    listenerCount: () => listeners.message.length,
+   };
+ }
+-
+-/** صبر تا خالی شدن صف سریال SW و تراکنش‌های IndexedDB */
+-export const settle = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+diff --git a/tests/serviceWorker.test.ts b/tests/serviceWorker.test.ts
+index c357c58..26b412d 100644
+--- a/tests/serviceWorker.test.ts
++++ b/tests/serviceWorker.test.ts
+@@ -1,24 +1,37 @@
+ import 'fake-indexeddb/auto';
+-import { beforeEach, describe, expect, it, vi } from 'vitest';
+-import { installChromeMock, settle } from './chromeMock';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { installChromeMock } from './chromeMock';
++import { LIVE_PERSIST_MS } from '../src/shared/constants';
+ import type { Segment } from '../src/shared/types';
+ 
++/**
++ * همگام‌سازی قطعی: به‌جای sleep ثابت، تا خالی شدن صف سریال SW صبر می‌کنیم (sw.whenIdle).
++ * تایمر ذخیره متن زنده با fake timers پیش برده می‌شود؛ fake-indexeddb از setImmediate
++ * استفاده می‌کند که fake نمی‌شود.
++ */
+ const seg = (id: string, text: string, final: boolean, t = Date.now()): Segment =>
+   ({ id, speaker: 'گوینده ۱', text, startedAt: t, updatedAt: t, final });
+ 
+ let mock: ReturnType<typeof installChromeMock>;
+ let repo: typeof import('../src/storage/repositories');
+-
+-/** هر تست: IndexedDB خالی + بارگذاری تازه SW (مثل بالا آمدن SW) */
+-async function bootSW(keepData = false) {
++let sw: typeof import('../src/background/serviceWorker');
++
++/**
++ * بارگذاری تازه SW.
++ *  keepData=false: IndexedDB و storage.session تازه (تست مستقل)
++ *  keepData=true : شبیه‌سازی kill/restart — داده حفظ، listenerهای SW قبلی حذف
++ */
++async function bootSW(keepData = false, opts?: Parameters<typeof installChromeMock>[0]) {
+   vi.resetModules();
+-  if (!keepData) {
++  if (keepData) {
++    mock.resetListeners();
++  } else {
+     (globalThis as any).indexedDB = new (await import('fake-indexeddb')).IDBFactory();
+-    mock = installChromeMock();
++    mock = installChromeMock(opts);
+   }
+   repo = await import('../src/storage/repositories');
+-  await import('../src/background/serviceWorker');
+-  await settle();
++  sw = await import('../src/background/serviceWorker');
++  await sw.whenIdle(); // بازیابی هنگام boot
+ }
+ 
+ const sessions = () => repo.listSessions();
+@@ -26,13 +39,16 @@ const sessions = () => repo.listSessions();
+ beforeEach(async () => {
+   await bootSW();
+ });
++afterEach(() => {
++  vi.useRealTimers();
++});
+ 
+ describe('Service Worker — چرخه جلسه', () => {
+   it('شروع → متن نهایی → خروج: یک جلسه ended با متن ذخیره‌شده', async () => {
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+     mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'سلام', true) });
+     mock.fromTab(1, { type: 'MEETING_ENDED' });
+-    await settle();
++    await sw.whenIdle();
+     const [s] = await sessions();
+     expect(s).toMatchObject({ status: 'ended', segmentCount: 1 });
+     expect((await repo.getSegments(s.id)).map((x) => x.text)).toEqual(['سلام']);
+@@ -41,25 +57,32 @@ describe('Service Worker — چرخه جلسه', () => {
+   it('ترتیب پیام‌ها: upsert بلافاصله بعد از START به همان جلسه می‌رسد', async () => {
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+     mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'اول', true) });
+-    await settle();
++    await sw.whenIdle();
+     const [s] = await sessions();
+     expect(s.segmentCount).toBe(1);
+   });
+ 
+-  it('متن زنده بعد از LIVE_PERSIST_MS ذخیره می‌شود', async () => {
++  it('متن زنده دقیقاً بعد از LIVE_PERSIST_MS ذخیره می‌شود (نه زودتر)', async () => {
++    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+     mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'در حال گفتن', false) });
+-    await settle();
++    await sw.whenIdle();
+     const [s] = await sessions();
+     expect(await repo.getSegments(s.id)).toHaveLength(0);
+-    await settle(2200);
++
++    vi.advanceTimersByTime(LIVE_PERSIST_MS - 1);
++    await sw.whenIdle();
++    expect(await repo.getSegments(s.id)).toHaveLength(0);
++
++    vi.advanceTimersByTime(1);
++    await sw.whenIdle();
+     expect((await repo.getSegments(s.id))[0]).toMatchObject({ text: 'در حال گفتن', final: false });
+-  }, 5000);
++  });
+ 
+   it('رویداد دیررس: نسخه غیرنهایی، segment نهایی را بازنویسی نمی‌کند', async () => {
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+     mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'متن نهایی کامل', true) });
+-    await settle();
++    await sw.whenIdle();
+     const [s] = await sessions();
+     await repo.upsertSegments(s.id, [seg('s1', 'متن نها', false)]);
+     expect((await repo.getSegments(s.id))[0]).toMatchObject({ text: 'متن نهایی کامل', final: true });
+@@ -73,7 +96,7 @@ describe('Service Worker — بازیابی', () => {
+     mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'قبل از بستن', true) });
+     mock.fromTab(1, { type: 'MEETING_ENDED', reason: 'unload' });
+     mock.closeTab(1);
+-    await settle();
++    await sw.whenIdle();
+     const [s] = await sessions();
+     expect(s.status).toBe('interrupted');
+     expect(s.segmentCount).toBe(1);
+@@ -86,7 +109,7 @@ describe('Service Worker — بازیابی', () => {
+     mock.reloadTab(1);
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+     mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s2', 'بعد', true) });
+-    await settle();
++    await sw.whenIdle();
+     const list = await sessions();
+     expect(list).toHaveLength(1);
+     expect(list[0]).toMatchObject({ status: 'active', segmentCount: 2 });
+@@ -96,17 +119,20 @@ describe('Service Worker — بازیابی', () => {
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'aaa-aaaa-aaa' });
+     mock.reloadTab(1);
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'bbb-bbbb-bbb' });
+-    await settle();
+-    expect((await sessions()).map((s) => [s.meetCode, s.status])).toEqual([
+-      ['bbb-bbbb-bbb', 'active'],
+-      ['aaa-aaaa-aaa', 'interrupted'],
+-    ]);
++    await sw.whenIdle();
++    // هر دو جلسه ممکن است در یک میلی‌ثانیه ساخته شوند ⇒ ترتیب لیست در تساوی startedAt تعریف‌نشده است؛
++    // موضوع این تست وضعیت هر جلسه است، نه ترتیب لیست
++    const list = await sessions();
++    expect(list).toHaveLength(2);
++    const byCode = Object.fromEntries(list.map((s) => [s.meetCode, s.status]));
++    expect(byCode).toEqual({ 'bbb-bbbb-bbb': 'active', 'aaa-aaaa-aaa': 'interrupted' });
+   });
+ 
+   it('راه‌اندازی مجدد SW با تب زنده ⇒ جلسه active می‌ماند', async () => {
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+-    await settle();
++    await sw.whenIdle();
+     await bootSW(true); // storage.session حفظ شده (SW kill، نه مرورگر)
++    expect(mock.listenerCount()).toBe(1); // فقط SW جدید
+     expect((await sessions())[0].status).toBe('active');
+   });
+ 
+@@ -114,7 +140,7 @@ describe('Service Worker — بازیابی', () => {
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+     const last = Date.now() + 60_000; // آخرین تغییر متن، بعد از شروع جلسه
+     mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'آخرین', true, last) });
+-    await settle();
++    await sw.whenIdle();
+     for (const k of Object.keys(mock.session)) delete mock.session[k];
+     await bootSW(true);
+     const [s] = await sessions();
+@@ -123,7 +149,7 @@ describe('Service Worker — بازیابی', () => {
+ 
+   it('حذف جلسه active در لایه داده رد می‌شود؛ upsert به جلسه حذف‌شده segment یتیم نمی‌سازد', async () => {
+     mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
+-    await settle();
++    await sw.whenIdle();
+     const [s] = await sessions();
+     expect(await repo.deleteSession(s.id)).toBe(false);
+     expect(await repo.getSession(s.id)).toBeDefined();
+@@ -134,3 +160,46 @@ describe('Service Worker — بازیابی', () => {
+     expect(await repo.getSegments(s.id)).toHaveLength(0);
+   });
+ });
++
++describe('رگرسیون: همگام‌سازی تست مستقل از سرعت اجرا', () => {
++  it('با storage کند (۱۵۰ms هر خواندن)، whenIdle تا پایان واقعی پردازش صبر می‌کند', async () => {
++    await bootSW(false, { storageDelayMs: 150 });
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'سلام', true) });
++    mock.fromTab(1, { type: 'MEETING_ENDED' });
++
++    // همان sleep ثابت ۶۰ms نسخه قبلی: صف هنوز در حال پردازش است ⇒ روش قبلی شکننده بود
++    await new Promise((r) => setTimeout(r, 60));
++    expect((await sessions()).find((s) => s.status === 'ended')).toBeUndefined();
++
++    await sw.whenIdle();
++    const [s] = await sessions();
++    expect(s).toMatchObject({ status: 'ended', segmentCount: 1 });
++  });
++
++  it('whenIdle کارهایی را که حین انتظار به صف اضافه می‌شوند هم پوشش می‌دهد', async () => {
++    mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'abc-defg-hij' });
++    const idle = sw.whenIdle();
++    mock.fromTab(1, { type: 'SEGMENT_UPSERT', segment: seg('s1', 'دیرتر اضافه شد', true) });
++    await idle;
++    expect((await sessions())[0].segmentCount).toBe(1);
++  });
++
++  it('دو جلسه با startedAt یکسان (یک میلی‌ثانیه): هر دو با وضعیت درست ثبت می‌شوند', async () => {
++    const now = vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000);
++    try {
++      mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'aaa-aaaa-aaa' });
++      mock.reloadTab(1);
++      mock.fromTab(1, { type: 'MEETING_STARTED', meetCode: 'bbb-bbbb-bbb' });
++      await sw.whenIdle();
++      const list = await sessions();
++      expect(list.map((s) => s.startedAt)).toEqual([1_800_000_000_000, 1_800_000_000_000]);
++      expect(Object.fromEntries(list.map((s) => [s.meetCode, s.status]))).toEqual({
++        'bbb-bbbb-bbb': 'active',
++        'aaa-aaaa-aaa': 'interrupted',
++      });
++    } finally {
++      now.mockRestore();
++    }
++  });
++});
+-- 
+2.43.0
+

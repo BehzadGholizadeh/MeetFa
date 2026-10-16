@@ -20,6 +20,19 @@ function enqueue(fn: () => Promise<unknown>): Promise<unknown> {
   return chain;
 }
 
+/**
+ * تا خالی شدن کامل صف سریال صبر می‌کند (شامل کارهایی که حین انتظار اضافه شوند).
+ * در تولید استفاده نمی‌شود؛ سیگنال قطعی «پایان پردازش» برای تست‌ها.
+ * رفتار SW را تغییر نمی‌دهد: فقط زنجیره موجود را await می‌کند.
+ */
+export async function whenIdle(): Promise<void> {
+  let observed: Promise<unknown>;
+  do {
+    observed = chain;
+    await observed;
+  } while (observed !== chain);
+}
+
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
 // ───────────── Tab state ─────────────
