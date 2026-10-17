@@ -257,7 +257,7 @@
  {
   "id": "S18",
   "text": "Please send the file to مریم by Friday.",
-  "want": "ltr?",
+  "want": "rtl",
   "rtl_word_share": 0.125,
   "rtl_letter_share": 0.129,
   "first_strong": "l",
@@ -272,7 +272,7 @@
  {
   "id": "S19",
   "text": "Ask مریم and علی to review the PR.",
-  "want": "ltr?",
+  "want": "rtl",
   "rtl_word_share": 0.25,
   "rtl_letter_share": 0.269,
   "first_strong": "l",
@@ -287,7 +287,7 @@
  {
   "id": "S20",
   "text": "He said: سلام دوستان!",
-  "want": "?",
+  "want": "rtl",
   "rtl_word_share": 0.5,
   "rtl_letter_share": 0.625,
   "first_strong": "l",

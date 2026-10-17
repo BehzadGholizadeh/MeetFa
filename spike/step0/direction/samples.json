@@ -1,22 +1,125 @@
 [
- {"id":"S1","group":"فارسی خالص","text":"سلام به همه، جلسه رو شروع می‌کنیم.","want":"rtl"},
- {"id":"S2","group":"انگلیسی خالص","text":"The deadline is Friday, October 30.","want":"ltr"},
- {"id":"S3","group":"فارسی با شروع لاتین","text":"API در این سرویس استفاده می‌شود.","want":"rtl"},
- {"id":"S4","group":"فارسی با نسخهٔ لاتین","text":"این نسخه OpenAI v2.4.0 است.","want":"rtl"},
- {"id":"S5","group":"یونانی","text":"Η προθεσμία είναι την Παρασκευή.","want":"ltr"},
- {"id":"S6","group":"سیریلیک","text":"Срок сдачи — в пятницу.","want":"ltr"},
- {"id":"S7","group":"عبری","text":"המועד האחרון הוא ביום שישי.","want":"rtl"},
- {"id":"S8","group":"فقط عدد لاتین","text":"2026","want":"rtl"},
- {"id":"S9","group":"فقط عدد فارسی","text":"۱۴۰۵","want":"rtl"},
- {"id":"S10","group":"فقط ایموجی","text":"👋🏽 ✅","want":"rtl"},
- {"id":"S11","group":"عدد و علامت","text":"۱۴۰۵ / 2026","want":"rtl"},
- {"id":"S12","group":"پایان با علامت سؤال","text":"آیا نسخهٔ API آماده است؟","want":"rtl"},
- {"id":"S13","group":"پرانتز در میانه","text":"گزارش در فایل (report.pdf) است.","want":"rtl"},
- {"id":"S14","group":"پایان با واژهٔ لاتین و نقطه","text":"این را ببین: OpenAI v2.4.0.","want":"rtl"},
- {"id":"S15","group":"شروع با پرانتز","text":"(نسخه 2.1)","want":"rtl"},
- {"id":"S16","group":"فارسی پر از اصطلاح لاتین","text":"API v2 در OpenAI SDK است.","want":"rtl"},
- {"id":"S17","group":"فارسی با پایان لاتین","text":"خروجی رو بفرست به API.","want":"rtl"},
- {"id":"S18","group":"انگلیسی با یک نام فارسی","text":"Please send the file to مریم by Friday.","want":"ltr?"},
- {"id":"S19","group":"انگلیسی با دو نام فارسی","text":"Ask مریم and علی to review the PR.","want":"ltr?"},
- {"id":"S20","group":"انگلیسی با نقل‌قول فارسی","text":"He said: سلام دوستان!","want":"?"}
+ {
+  "id": "S1",
+  "group": "فارسی خالص",
+  "text": "سلام به همه، جلسه رو شروع می‌کنیم.",
+  "want": "rtl"
+ },
+ {
+  "id": "S2",
+  "group": "انگلیسی خالص",
+  "text": "The deadline is Friday, October 30.",
+  "want": "ltr"
+ },
+ {
+  "id": "S3",
+  "group": "فارسی با شروع لاتین",
+  "text": "API در این سرویس استفاده می‌شود.",
+  "want": "rtl"
+ },
+ {
+  "id": "S4",
+  "group": "فارسی با نسخهٔ لاتین",
+  "text": "این نسخه OpenAI v2.4.0 است.",
+  "want": "rtl"
+ },
+ {
+  "id": "S5",
+  "group": "یونانی",
+  "text": "Η προθεσμία είναι την Παρασκευή.",
+  "want": "ltr"
+ },
+ {
+  "id": "S6",
+  "group": "سیریلیک",
+  "text": "Срок сдачи — в пятницу.",
+  "want": "ltr"
+ },
+ {
+  "id": "S7",
+  "group": "عبری",
+  "text": "המועד האחרון הוא ביום שישי.",
+  "want": "rtl"
+ },
+ {
+  "id": "S8",
+  "group": "فقط عدد لاتین",
+  "text": "2026",
+  "want": "rtl"
+ },
+ {
+  "id": "S9",
+  "group": "فقط عدد فارسی",
+  "text": "۱۴۰۵",
+  "want": "rtl"
+ },
+ {
+  "id": "S10",
+  "group": "فقط ایموجی",
+  "text": "👋🏽 ✅",
+  "want": "rtl"
+ },
+ {
+  "id": "S11",
+  "group": "عدد و علامت",
+  "text": "۱۴۰۵ / 2026",
+  "want": "rtl"
+ },
+ {
+  "id": "S12",
+  "group": "پایان با علامت سؤال",
+  "text": "آیا نسخهٔ API آماده است؟",
+  "want": "rtl"
+ },
+ {
+  "id": "S13",
+  "group": "پرانتز در میانه",
+  "text": "گزارش در فایل (report.pdf) است.",
+  "want": "rtl"
+ },
+ {
+  "id": "S14",
+  "group": "پایان با واژهٔ لاتین و نقطه",
+  "text": "این را ببین: OpenAI v2.4.0.",
+  "want": "rtl"
+ },
+ {
+  "id": "S15",
+  "group": "شروع با پرانتز",
+  "text": "(نسخه 2.1)",
+  "want": "rtl"
+ },
+ {
+  "id": "S16",
+  "group": "فارسی پر از اصطلاح لاتین",
+  "text": "API v2 در OpenAI SDK است.",
+  "want": "rtl"
+ },
+ {
+  "id": "S17",
+  "group": "فارسی با پایان لاتین",
+  "text": "خروجی رو بفرست به API.",
+  "want": "rtl"
+ },
+ {
+  "id": "S18",
+  "group": "انگلیسی با یک نام فارسی",
+  "text": "Please send the file to مریم by Friday.",
+  "want": "rtl",
+  "want_before_decision": "ltr?"
+ },
+ {
+  "id": "S19",
+  "group": "انگلیسی با دو نام فارسی",
+  "text": "Ask مریم and علی to review the PR.",
+  "want": "rtl",
+  "want_before_decision": "ltr?"
+ },
+ {
+  "id": "S20",
+  "group": "انگلیسی با نقل‌قول فارسی",
+  "text": "He said: سلام دوستان!",
+  "want": "rtl",
+  "want_before_decision": "?"
+ }
 ]

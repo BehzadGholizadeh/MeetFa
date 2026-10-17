@@ -17,36 +17,36 @@ S14 rtl   0.6       0.562       | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | r
 S15 rtl   1.0       1.0         | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
 S16 rtl   0.333     0.278       | ltr✗ | rtl✓ | rtl✓ | rtl✓ | ltr✗ | rtl✓ | rtl✓
 S17 rtl   0.8       0.824       | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | ltr✗
-S18 ltr?  0.125     0.129       | ltr✓ | rtl✗ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓
-S19 ltr?  0.25      0.269       | ltr✓ | rtl✗ | rtl✗ | ltr✓ | ltr✓ | rtl✗ | ltr✓
-S20 ?     0.5       0.625       | ltr· | rtl· | rtl· | rtl· | rtl· | rtl· | rtl·
+S18 rtl   0.125     0.129       | ltr✗ | rtl✓ | ltr✗ | ltr✗ | ltr✗ | ltr✗ | ltr✗
+S19 rtl   0.25      0.269       | ltr✗ | rtl✓ | rtl✓ | ltr✗ | ltr✗ | rtl✓ | ltr✗
+S20 rtl   0.5       0.625       | ltr✗ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
 
 mismatches vs firm wants (rtl/ltr) and soft wants (ltr?):
-  P1_first_strong  firm=['S3', 'S16'] soft=[]
-  P2_any_rtl       firm=[] soft=['S18', 'S19']
-  P_word≥20%       firm=[] soft=['S19']
-  P_word≥30%       firm=[] soft=[]
-  P_word≥50%       firm=['S16'] soft=[]
-  P_letter≥20%     firm=[] soft=['S19']
-  P_last_strong    firm=['S14', 'S17'] soft=[]
+  P1_first_strong  firm=['S3', 'S16', 'S18', 'S19', 'S20'] soft=[]
+  P2_any_rtl       firm=[] soft=[]
+  P_word≥20%       firm=['S18'] soft=[]
+  P_word≥30%       firm=['S18', 'S19'] soft=[]
+  P_word≥50%       firm=['S16', 'S18', 'S19'] soft=[]
+  P_letter≥20%     firm=['S18'] soft=[]
+  P_last_strong    firm=['S14', 'S17', 'S18', 'S19'] soft=[]
 
 word-share threshold sweep (firm + soft wants):
-  0.05: firm_fail=[] soft_fail=['S18', 'S19']
-  0.10: firm_fail=[] soft_fail=['S18', 'S19']
-  0.15: firm_fail=[] soft_fail=['S19']
-  0.20: firm_fail=[] soft_fail=['S19']
-  0.25: firm_fail=[] soft_fail=['S19']
-  0.30: firm_fail=[] soft_fail=[]
-  0.35: firm_fail=['S16'] soft_fail=[]
-  0.40: firm_fail=['S16'] soft_fail=[]
-  0.45: firm_fail=['S16'] soft_fail=[]
-  0.50: firm_fail=['S16'] soft_fail=[]
-  0.55: firm_fail=['S16'] soft_fail=[]
-  0.60: firm_fail=['S16'] soft_fail=[]
-  0.65: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
-  0.70: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
-  0.75: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
-  0.80: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
-  0.85: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17'] soft_fail=[]
-  0.90: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17'] soft_fail=[]
-  0.95: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17'] soft_fail=[]
+  0.05: firm_fail=[] soft_fail=[]
+  0.10: firm_fail=[] soft_fail=[]
+  0.15: firm_fail=['S18'] soft_fail=[]
+  0.20: firm_fail=['S18'] soft_fail=[]
+  0.25: firm_fail=['S18'] soft_fail=[]
+  0.30: firm_fail=['S18', 'S19'] soft_fail=[]
+  0.35: firm_fail=['S16', 'S18', 'S19'] soft_fail=[]
+  0.40: firm_fail=['S16', 'S18', 'S19'] soft_fail=[]
+  0.45: firm_fail=['S16', 'S18', 'S19'] soft_fail=[]
+  0.50: firm_fail=['S16', 'S18', 'S19'] soft_fail=[]
+  0.55: firm_fail=['S16', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.60: firm_fail=['S16', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.65: firm_fail=['S4', 'S14', 'S16', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.70: firm_fail=['S4', 'S14', 'S16', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.75: firm_fail=['S4', 'S14', 'S16', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.80: firm_fail=['S4', 'S14', 'S16', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.85: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.90: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17', 'S18', 'S19', 'S20'] soft_fail=[]
+  0.95: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17', 'S18', 'S19', 'S20'] soft_fail=[]

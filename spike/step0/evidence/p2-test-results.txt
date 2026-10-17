@@ -1,0 +1,280 @@
+TAP version 13
+# Subtest: S1 فارسی خالص: rtl
+ok 1 - S1 فارسی خالص: rtl
+  ---
+  duration_ms: 1.256795
+  type: 'test'
+  ...
+# Subtest: S2 انگلیسی خالص: ltr
+ok 2 - S2 انگلیسی خالص: ltr
+  ---
+  duration_ms: 0.520219
+  type: 'test'
+  ...
+# Subtest: S3 فارسی با شروع لاتین: rtl
+ok 3 - S3 فارسی با شروع لاتین: rtl
+  ---
+  duration_ms: 0.261174
+  type: 'test'
+  ...
+# Subtest: S4 فارسی با نسخهٔ لاتین: rtl
+ok 4 - S4 فارسی با نسخهٔ لاتین: rtl
+  ---
+  duration_ms: 0.125405
+  type: 'test'
+  ...
+# Subtest: S5 یونانی: ltr
+ok 5 - S5 یونانی: ltr
+  ---
+  duration_ms: 0.227948
+  type: 'test'
+  ...
+# Subtest: S6 سیریلیک: ltr
+ok 6 - S6 سیریلیک: ltr
+  ---
+  duration_ms: 0.071532
+  type: 'test'
+  ...
+# Subtest: S7 عبری: rtl
+ok 7 - S7 عبری: rtl
+  ---
+  duration_ms: 0.06802
+  type: 'test'
+  ...
+# Subtest: S8 فقط عدد لاتین: rtl
+ok 8 - S8 فقط عدد لاتین: rtl
+  ---
+  duration_ms: 0.206586
+  type: 'test'
+  ...
+# Subtest: S9 فقط عدد فارسی: rtl
+ok 9 - S9 فقط عدد فارسی: rtl
+  ---
+  duration_ms: 0.340125
+  type: 'test'
+  ...
+# Subtest: S10 فقط ایموجی: rtl
+ok 10 - S10 فقط ایموجی: rtl
+  ---
+  duration_ms: 0.326708
+  type: 'test'
+  ...
+# Subtest: S11 عدد و علامت: rtl
+ok 11 - S11 عدد و علامت: rtl
+  ---
+  duration_ms: 0.204567
+  type: 'test'
+  ...
+# Subtest: S12 پایان با علامت سؤال: rtl
+ok 12 - S12 پایان با علامت سؤال: rtl
+  ---
+  duration_ms: 0.069236
+  type: 'test'
+  ...
+# Subtest: S13 پرانتز در میانه: rtl
+ok 13 - S13 پرانتز در میانه: rtl
+  ---
+  duration_ms: 0.040322
+  type: 'test'
+  ...
+# Subtest: S14 پایان با واژهٔ لاتین و نقطه: rtl
+ok 14 - S14 پایان با واژهٔ لاتین و نقطه: rtl
+  ---
+  duration_ms: 0.03761
+  type: 'test'
+  ...
+# Subtest: S15 شروع با پرانتز: rtl
+ok 15 - S15 شروع با پرانتز: rtl
+  ---
+  duration_ms: 0.038146
+  type: 'test'
+  ...
+# Subtest: S16 فارسی پر از اصطلاح لاتین: rtl
+ok 16 - S16 فارسی پر از اصطلاح لاتین: rtl
+  ---
+  duration_ms: 0.035261
+  type: 'test'
+  ...
+# Subtest: S17 فارسی با پایان لاتین: rtl
+ok 17 - S17 فارسی با پایان لاتین: rtl
+  ---
+  duration_ms: 0.070801
+  type: 'test'
+  ...
+# Subtest: S18 انگلیسی با یک نام فارسی: rtl
+ok 18 - S18 انگلیسی با یک نام فارسی: rtl
+  ---
+  duration_ms: 0.043356
+  type: 'test'
+  ...
+# Subtest: S19 انگلیسی با دو نام فارسی: rtl
+ok 19 - S19 انگلیسی با دو نام فارسی: rtl
+  ---
+  duration_ms: 0.058806
+  type: 'test'
+  ...
+# Subtest: S20 انگلیسی با نقل‌قول فارسی: rtl
+ok 20 - S20 انگلیسی با نقل‌قول فارسی: rtl
+  ---
+  duration_ms: 0.043695
+  type: 'test'
+  ...
+# Subtest: edge: empty
+ok 21 - edge: empty
+  ---
+  duration_ms: 0.088645
+  type: 'test'
+  ...
+# Subtest: edge: spaces only
+ok 22 - edge: spaces only
+  ---
+  duration_ms: 0.04075
+  type: 'test'
+  ...
+# Subtest: edge: ZWNJ only
+ok 23 - edge: ZWNJ only
+  ---
+  duration_ms: 0.036288
+  type: 'test'
+  ...
+# Subtest: edge: Arabic-Indic digits
+ok 24 - edge: Arabic-Indic digits
+  ---
+  duration_ms: 0.03931
+  type: 'test'
+  ...
+# Subtest: edge: tatweel only (Common)
+ok 25 - edge: tatweel only (Common)
+  ---
+  duration_ms: 0.039462
+  type: 'test'
+  ...
+# Subtest: edge: U+FFFD only
+ok 26 - edge: U+FFFD only
+  ---
+  duration_ms: 0.039372
+  type: 'test'
+  ...
+# Subtest: edge: emoji ZWJ sequence
+ok 27 - edge: emoji ZWJ sequence
+  ---
+  duration_ms: 0.040158
+  type: 'test'
+  ...
+# Subtest: edge: punctuation only
+ok 28 - edge: punctuation only
+  ---
+  duration_ms: 0.036031
+  type: 'test'
+  ...
+# Subtest: edge: Arabic ligature U+FDF2
+ok 29 - edge: Arabic ligature U+FDF2
+  ---
+  duration_ms: 0.036563
+  type: 'test'
+  ...
+# Subtest: edge: Arabic presentation form U+FEFB
+ok 30 - edge: Arabic presentation form U+FEFB
+  ---
+  duration_ms: 0.042345
+  type: 'test'
+  ...
+# Subtest: edge: Persian with harakat
+ok 31 - edge: Persian with harakat
+  ---
+  duration_ms: 0.036323
+  type: 'test'
+  ...
+# Subtest: edge: Arabic yeh/kaf
+ok 32 - edge: Arabic yeh/kaf
+  ---
+  duration_ms: 0.036545
+  type: 'test'
+  ...
+# Subtest: edge: Hebrew with niqqud
+ok 33 - edge: Hebrew with niqqud
+  ---
+  duration_ms: 0.036476
+  type: 'test'
+  ...
+# Subtest: edge: Latin with combining accent
+ok 34 - edge: Latin with combining accent
+  ---
+  duration_ms: 0.071783
+  type: 'test'
+  ...
+# Subtest: edge: fullwidth Latin
+ok 35 - edge: fullwidth Latin
+  ---
+  duration_ms: 0.093877
+  type: 'test'
+  ...
+# Subtest: edge: Greek capital omega
+ok 36 - edge: Greek capital omega
+  ---
+  duration_ms: 0.044997
+  type: 'test'
+  ...
+# Subtest: edge: Cyrillic
+ok 37 - edge: Cyrillic
+  ---
+  duration_ms: 0.039025
+  type: 'test'
+  ...
+# Subtest: edge: Latin then Hebrew
+ok 38 - edge: Latin then Hebrew
+  ---
+  duration_ms: 0.043992
+  type: 'test'
+  ...
+# Subtest: edge: Latin in RLI…PDI isolate (isolates not special in P2)
+ok 39 - edge: Latin in RLI…PDI isolate (isolates not special in P2)
+  ---
+  duration_ms: 0.038969
+  type: 'test'
+  ...
+# Subtest: edge: Persian inside LRI…PDI
+ok 40 - edge: Persian inside LRI…PDI
+  ---
+  duration_ms: 0.035076
+  type: 'test'
+  ...
+# Subtest: edge: Syriac only (not covered)
+ok 41 - edge: Syriac only (not covered)
+  ---
+  duration_ms: 0.034404
+  type: 'test'
+  ...
+# Subtest: edge: Thaana only (not covered)
+ok 42 - edge: Thaana only (not covered)
+  ---
+  duration_ms: 0.037008
+  type: 'test'
+  ...
+# Subtest: edge: CJK only (not covered)
+ok 43 - edge: CJK only (not covered)
+  ---
+  duration_ms: 0.038203
+  type: 'test'
+  ...
+# Subtest: edge: Devanagari only (not covered)
+ok 44 - edge: Devanagari only (not covered)
+  ---
+  duration_ms: 0.040191
+  type: 'test'
+  ...
+# Subtest: edge: CJK + Latin
+ok 45 - edge: CJK + Latin
+  ---
+  duration_ms: 0.036751
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 149.735026

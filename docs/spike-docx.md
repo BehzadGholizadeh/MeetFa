@@ -1,6 +1,6 @@
 # Stage 3 — Step 0 spike: download path and DOCX
 
-**Status: PARTIAL. Waiting for the owner's manual checks in real Chrome, Word, Google Docs and LibreOffice on Windows.**
+**Status: PARTIAL. Waiting for the owner's manual checks in real Chrome, Word, Google Docs and LibreOffice on Windows. LibreOffice-on-Linux results below do not replace those checks.**
 
 | Item | Status |
 | --- | --- |
@@ -55,40 +55,57 @@ No package in either tree has an install script. Full output is in `spike/step0/
 - **F5. Mixed lines read correctly.** "گزارش Q3 آماده است", "۱۴۰۵" next to "2026", and an English sentence inside a Persian paragraph all read in the expected order. Splitting runs by script (variant B) and using a single run (variant A) rendered identically in LibreOffice. Word may differ, so both are kept for the Word check.
 - **F6. Size is not a concern.** The 400,608-character fixture is 149 KB as hand-written DOCX and 134 KB with the library. Build time in Node was 0.2–0.5 s. Build time in the panel and open time in Word are still to be measured.
 
-## 4. Owner's manual checks
+## 4. Real-environment test checklist (owner)
+
+None of these can be replaced by the LibreOffice-on-Linux results in this document.
+
+**Record first:** Windows 11 build, Chrome version (`chrome://version`), Word 365 build (File → Account → About Word), LibreOffice version, and the date. Google Docs needs only the date and browser.
 
 **Setup**
 
-1. Download or check out branch `spike/stage3-step0`.
-2. In `spike/step0`, run `npm ci`, then `node make-download-test.mjs`.
-3. In Chrome, open `chrome://extensions`, turn on Developer mode, choose Load unpacked, and select `spike/step0/download-test`. This is a separate test extension, not MeetFa.
-4. Click its toolbar icon to open the side panel.
+1. Get branch `spike/stage3-step0` (or the source ZIP) and run `npm ci` then `node make-download-test.mjs` in `spike/step0`.
+2. In Chrome, open `chrome://extensions`, turn on Developer mode, choose Load unpacked, and select `spike/step0/download-test`. This is a separate test extension, not MeetFa.
+3. Click its toolbar icon to open the side panel.
 
-**Download path (A first, then B)**
+**A. Chrome: download from the side panel**
 
-| # | Action | Record |
-| --- | --- | --- |
-| A1 | Panel button "A1 — TXT" | Does `MeetFa_spike_test.txt` appear in `chrome://downloads`? Does Persian show correctly in Notepad? |
-| A2 | Panel button "A2 — DOCX آزمون‌ها" | Does `MeetFa_spike_checks.docx` appear? |
-| A3 | Panel button "A3 — DOCX اندازهٔ واقعی" | Does it download? What build time (ms) does the panel log show? |
-| B | Only if A failed: "B — باز کردن تب افزونه", then B1–B3 in the tab | Same three questions |
+- [ ] A1 TXT: `MeetFa_spike_test.txt` appears in `chrome://downloads` and shows Persian correctly in Notepad
+- [ ] A2 DOCX checks: `MeetFa_spike_checks.docx` appears
+- [ ] A3 DOCX large: downloads; the panel log shows a build time of ___ ms (target ≤ 5,000 ms)
+- [ ] No download prompt or warning, or note exactly what Chrome showed
 
-**DOCX (use the A2 and A3 files, plus `spike/step0/evidence/*.docx`)**
+**B. Chrome: extension-tab fallback (only if any A item fails)**
 
-| File | Word 365 (Windows 11) | LibreOffice (Windows) | Google Docs (upload) |
-| --- | --- | --- | --- |
-| `MeetFa_spike_checks.docx` (variant C) | No repair prompt? Editable? RTL? Mixed lines correct? Special characters? | Same | Converts? RTL kept? Bold speaker kept? |
-| `evidence/hand-checks-B-split-runs.docx` | Compare with C: does the English-only line end with its period on the right? | Same | Same |
-| `evidence/lib-checks.docx` | Fallback path, same checks | Same | Same |
-| `MeetFa_spike_large.docx` | Open time in seconds (target ≤ 10 s); scrolls smoothly? | Open time | Converts? |
+- [ ] B opens the extension tab
+- [ ] B1, B2, B3 download as above
 
-Record the Chrome version, Word build, LibreOffice version and Windows build next to the results.
+**C. Word 365 on Windows.** Files: `MeetFa_spike_checks.docx` (from A2), `evidence/hand-direction-samples-P2.docx`, `MeetFa_spike_large.docx` (from A3), `evidence/lib-checks.docx`
+
+- [ ] Opens with no repair prompt; text is editable and can be saved
+- [ ] Persian paragraphs right-aligned; final "." / "؟" at the left end
+- [ ] Each row S1–S20 in `hand-direction-samples-P2.docx` matches the "Expected visual result" in section 7
+- [ ] "گزارش Q3 آماده است", "۱۴۰۵" next to "2026", and "(نسخه 2.1)" read correctly
+- [ ] `& < > " '`, emoji, half-space (ZWNJ), ي/ی and ك/ک look distinct, tab, and U+FFFD visible
+- [ ] Font: Tahoma used for Persian, no boxes
+- [ ] Large file opens in ___ s (target ≤ 10 s) and scrolls smoothly
+- [ ] `lib-checks.docx`: same checks (fallback path)
+
+**D. LibreOffice on Windows:** the same checks as C.
+
+**E. Google Docs:** upload each file from C, then open with Google Docs
+
+- [ ] Converts without error
+- [ ] RTL paragraphs stay RTL; S2, S5, S6 stay LTR
+- [ ] Bold speaker lines and grey times are kept
+- [ ] Special characters as in C
+
+Record pass/fail plus a screenshot for any failure in a new section 9 of this file.
 
 ## 5. Decisions to make after the manual checks
 
 - **Download path:** if A passes, use A; if only B passes, use B; if both fail, escalate. The `downloads` permission is not requested without separate approval.
 - **DOCX:** if every Word, LibreOffice and Google Docs check passes on the hand-written variant C, the recommendation is hand-written WordprocessingML + `fflate@0.8.3`. If it fails, `docx@9.8.1` is the fallback, but only with lockfile overrides for F1 and with its missing section RTL accepted. If both fail, Stage 3 ships without Word (owner decision).
-- **Spec change (F4):** approve per-paragraph first-strong direction for transcript paragraphs.
+- **Paragraph direction:** decided as policy P2 (section 7.1), conditional on section 4. One open point: scripts not named by the rule.
 
 ## 6. Spike commit boundaries (verified)
 
@@ -102,7 +119,7 @@ Record the Chrome version, Word build, LibreOffice version and Windows build nex
 | Root `npm run build` | OK |
 | Content-script bundle (loader, entry and imported chunk) vs a baseline build | SHA-256 identical |
 
-## 7. Paragraph direction: Unicode algorithm vs. MeetFa policy (decision pending)
+## 7. Paragraph direction: Unicode algorithm vs. MeetFa policy (P2 chosen, conditional; see 7.1)
 
 Two different things are involved, and only the second is MeetFa's choice.
 
@@ -113,7 +130,7 @@ Two different things are involved, and only the second is MeetFa's choice.
 
 ### Decision table
 
-"Expected base" is the proposed product expectation. A "?" marks an expectation the owner must confirm. Expected visual results were checked against the LibreOffice renders.
+"Expected base" is the product expectation. The "?" entries for S18–S20 were resolved to RTL by the owner's P2 decision (7.1). This table is kept as it was when the decision was made. Expected visual results were checked against the LibreOffice renders.
 
 | Id | Text | Expected base | Expected visual result (with the expected base) | Visual result with the other base |
 | --- | --- | --- | --- | --- |
@@ -161,3 +178,44 @@ Word-share sweep from 5% to 95%: the only thresholds with no failures at all are
   - **If no:** no rule tested here is safe. A threshold would have to be calibrated on real (owner-approved, anonymized) transcripts before it is adopted.
 - **Implementation after the decision (Step 4, not now):** the chosen policy, the "no strong letter → RTL" rule, and every row of this table become unit tests. Production uses `Bidi_Class` data from the pinned UCD file described in the spec, not the spike's regex. The side panel should use the same policy later (Step 2) instead of `dir="auto"`, which equals P1.
 - **Still unverified:** all download and DOCX claims in sections 1–5 remain unconfirmed until the real Chrome and Windows Office tests are done.
+
+### 7.1 Decision recorded: policy P2 (conditional on the real-environment tests)
+
+The owner chose P2 as the product decision. It stays conditional until section 4 is completed.
+
+**Rules**
+
+1. At least one Persian, Arabic or Hebrew **letter** → base **RTL**.
+2. Otherwise, at least one Latin, Greek or Cyrillic **letter** → base **LTR**.
+3. Otherwise (no such letter) → base **RTL** (document default).
+4. Display of mixed text and punctuation is left to the Unicode Bidi Algorithm in Word, LibreOffice and Chrome. MeetFa never rewrites, reorders or adds characters. The text invariant tests in sections 1 and 6 confirm this for every spike file.
+
+**Exact definitions used in the spike** (`spike/step0/direction/p2.mjs`)
+
+- **Letter:** Unicode General_Category L (`\p{L}`). Digits (including ۰–۹ and ٠–٩), punctuation, emoji, combining marks, ZWNJ and tatweel are not letters.
+- **Script:** the Unicode Script property as known to the JavaScript engine: `Arabic` or `Hebrew` for rule 1; `Latin`, `Greek` or `Cyrillic` for rule 2. Regex: `/[\p{L}&&[\p{Script=Arabic}\p{Script=Hebrew}]]/v`. The `v` flag requires Chrome 112+, and the manifest minimum is 116.
+- **Isolates** (LRI/RLI/FSI…PDI) get no special treatment; P2 only asks whether a letter exists.
+- **Unicode version:** the engine's own. The spike ran on Node 22.22.2 (Unicode 17.0). Chrome's version may be older, which only matters for characters added recently.
+
+**P2 results on all current samples** (`node --test direction/p2.test.mjs`: 45 of 45 pass, output in `evidence/p2-test-results.txt`)
+
+| Ids | P2 base | Matches expected |
+| --- | --- | --- |
+| S1, S3, S4, S7, S12–S17 | RTL | yes |
+| S2, S5, S6 | LTR | yes |
+| S8–S11 (no letters) | RTL | yes |
+| S18, S19, S20 | RTL | yes. These were "LTR ?" / "?" before the decision; the owner accepts RTL. Visual result: English clauses appear in reversed order around the Persian name, as shown in `evidence/p2-render-3.png` |
+
+**Edge cases also tested:** empty text; spaces only; ZWNJ only; Arabic-Indic digits; tatweel only; U+FFFD; emoji ZWJ sequence; punctuation only; Arabic ligature U+FDF2; presentation form U+FEFB; Persian with harakat; Arabic ي/ك; Hebrew with niqqud; Latin with a combining accent; fullwidth Latin; Greek; Cyrillic; Latin followed by Hebrew; isolates; CJK followed by Latin.
+
+**Open point (needs the owner):** letters of scripts the rule does not name (Syriac, Thaana, CJK, Devanagari, …) are currently ignored. A paragraph containing *only* such letters therefore becomes RTL by rule 3. Confirm, or extend the rule (for example, other RTL scripts → RTL, all other letters → LTR).
+
+**Evidence for this decision:** `evidence/hand-checks-P2.docx` (its `document.xml` is byte-identical to variant C, so earlier test files stay valid); `evidence/hand-direction-samples-P2.docx` (S1–S20 built by the candidate exporter with P2); `evidence/p2-render-1..3.png` (LibreOffice on Linux, rendered with an installed Arabic-script font instead of Tahoma, for evidence only). The download-test extension now uses P2 as well; its build is byte-identical to the Node build.
+
+**Not done:** no product code, no Step 1. Production will use the same rule with the same tests in Step 4 (DOCX) and later in the panel (Step 2), after approval.
+
+## 8. Repository status (as of 17 Oct 2026)
+
+- `origin/main` is at `c22d254`. That single commit contains the content of the two spike commits (`00e0073`, `69df571`) squashed together, plus two extra files in the repo root: `0005-spike-direction-decision-table.patch` and `MeetFa-spike-step0.bundle`. Product files (`src/`, `tests/`, manifest, root package files) on `main` are unchanged from `d941d5a`.
+- Branch `spike/stage3-step0` is **not** on GitHub. Its commits (`00e0073`, `69df571`, plus the P2 commit) are available only in the delivered bundle.
+- The P2 commit changes only `docs/spike-docx.md` and `spike/step0/**`. Those files are identical on `main` and on the spike branch, so the patch applies to either.

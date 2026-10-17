@@ -30,6 +30,16 @@
   "bytes": 8928
  },
  {
+  "file": "hand-checks-P2.docx",
+  "paragraphs": 20,
+  "all_bidi": true,
+  "section_bidi": true,
+  "fffd": 2,
+  "text_invariant": true,
+  "rtl_runs": 20,
+  "bytes": 8928
+ },
+ {
   "file": "hand-large.docx",
   "paragraphs": 3610,
   "all_bidi": true,

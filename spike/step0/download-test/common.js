@@ -18,10 +18,10 @@ export function blobDownload(bytes, name, mime) {
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const files = {
   txt: () => blobDownload(new TextEncoder().encode('\uFEFFMeetFa spike — متن آزمایشی\r\nخط دوم\r\n'), 'MeetFa_spike_test.txt', 'text/plain;charset=utf-8'),
-  checks: () => { const r = buildDocx({ meta: META, turns: CHECK_TURNS }, { mode: 'split', paraDir: 'auto' }); blobDownload(r.bytes, 'MeetFa_spike_checks.docx', DOCX); log(`نویسه‌های نامعتبر جایگزین‌شده: ${r.replaced}`); },
+  checks: () => { const r = buildDocx({ meta: META, turns: CHECK_TURNS }, { mode: 'split', paraDir: 'p2' }); blobDownload(r.bytes, 'MeetFa_spike_checks.docx', DOCX); log(`نویسه‌های نامعتبر جایگزین‌شده: ${r.replaced}`); },
   large: () => {
     const t0 = performance.now(); const fx = largeFixture();
-    const r = buildDocx({ meta: { ...META, title: 'جلسهٔ آزمایشی بزرگ — 3,000 بخش' }, turns: fx.turns }, { mode: 'split', paraDir: 'auto' });
+    const r = buildDocx({ meta: { ...META, title: 'جلسهٔ آزمایشی بزرگ — 3,000 بخش' }, turns: fx.turns }, { mode: 'split', paraDir: 'p2' });
     const ms = Math.round(performance.now() - t0);
     log(`ساخت فایل بزرگ: ${ms} ms برای ${fx.segments} بخش و ${fx.chars} نویسه (هدف ≤ 5000 ms)`);
     blobDownload(r.bytes, 'MeetFa_spike_large.docx', DOCX);

@@ -14,7 +14,10 @@ const time = async (name, fn) => {
 await time('hand-checks-A-single-run', () => buildDocx({ meta: META, turns: CHECK_TURNS }, { mode: 'single' }));
 await time('hand-checks-B-split-runs', () => buildDocx({ meta: META, turns: CHECK_TURNS }, { mode: 'split' }));
 await time('hand-checks-C-split-auto-dir', () => buildDocx({ meta: META, turns: CHECK_TURNS }, { mode: 'split', paraDir: 'auto' }));
-await time('hand-large', () => buildDocx({ meta: { ...META, title: 'جلسهٔ آزمایشی بزرگ — 3,000 بخش' }, turns: large.turns }, { mode: 'split' }));
+await time('hand-checks-P2', () => buildDocx({ meta: META, turns: CHECK_TURNS }, { mode: 'split', paraDir: 'p2' }));
+const samples = JSON.parse((await import('node:fs')).readFileSync('direction/samples.json', 'utf8'));
+await time('hand-direction-samples-P2', () => buildDocx({ meta: { ...META, title: 'نمونه‌های جهت پاراگراف — سیاست P2' }, turns: samples.map(s => ({ speaker: s.id + ' · ' + s.group, time: 'base ' + s.want.toUpperCase(), paragraphs: [s.text] })) }, { mode: 'split', paraDir: 'p2' }));
+await time('hand-large', () => buildDocx({ meta: { ...META, title: 'جلسهٔ آزمایشی بزرگ — 3,000 بخش' }, turns: large.turns }, { mode: 'split', paraDir: 'p2' }));
 await time('lib-checks', () => buildDocxLib({ meta: META, turns: CHECK_TURNS }));
 await time('lib-large', () => buildDocxLib({ meta: { ...META, title: 'جلسهٔ آزمایشی بزرگ — 3,000 بخش' }, turns: large.turns }));
 writeFileSync('out/expected.json', JSON.stringify({

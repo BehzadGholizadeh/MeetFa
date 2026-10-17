@@ -1,5 +1,6 @@
 // Hand-written WordprocessingML (candidate path). Zip via fflate (no other deps).
 import { zipSync, strToU8 } from './vendor/fflate.js';
+import { baseDirection } from './p2.js';
 
 const RTL = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
 const LTR = /[A-Za-z\u00C0-\u024F]/;
@@ -44,7 +45,7 @@ function splitByScript(text) {
 }
 const para = (inner, style, rtl = true) => `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ''}${rtl ? '<w:bidi/>' : '<w:bidi w:val="0"/>'}</w:pPr>${inner}</w:p>`;
 
-/** paraDir 'rtl': every paragraph RTL; 'auto': transcript paragraphs follow their first strong character (like dir="auto") */
+/** paraDir 'rtl': every paragraph RTL; 'auto': first strong character (superseded); 'p2': owner-approved policy P2 (direction/p2.mjs) */
 export function buildDocx({ meta, turns }, { mode = 'single', lang = null, paraDir = 'rtl' } = {}) {
   let replaced = 0;
   const clean = (s) => { const [t, n] = sanitize(s); replaced += n; return t; };
@@ -57,7 +58,8 @@ export function buildDocx({ meta, turns }, { mode = 'single', lang = null, paraD
     body.push(para(runs(clean(t.speaker), { bold: true, mode, lang }) + runs(' · ' + t.time, { color: '777777', mode: 'single' }), 'Speaker'));
     for (const p of t.paragraphs) {
       const c = clean(p);
-      body.push(para(runs(c, { mode, lang }), null, paraDir === 'auto' ? firstStrongIsRtl(c) || !/[A-Za-z]/.test(c) : true));
+      const rtl = paraDir === 'p2' ? baseDirection(c) === 'rtl' : paraDir === 'auto' ? firstStrongIsRtl(c) || !/[A-Za-z]/.test(c) : true;
+      body.push(para(runs(c, { mode, lang }), null, rtl));
     }
   }
   const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

@@ -46,7 +46,7 @@ def check(path, kind):
     return r
 
 rows = []
-for f, k in [('hand-checks-A-single-run', 'checks'), ('hand-checks-B-split-runs', 'checks'), ('hand-checks-C-split-auto-dir', 'checks'), ('hand-large', 'large'),
+for f, k in [('hand-checks-A-single-run', 'checks'), ('hand-checks-B-split-runs', 'checks'), ('hand-checks-C-split-auto-dir', 'checks'), ('hand-checks-P2', 'checks'), ('hand-large', 'large'),
              ('lib-checks', 'checks'), ('lib-large', 'large')]:
     rows.append(check(f'out/{f}.docx', k))
 ok = all(r['all_bidi'] and r['text_invariant'] for r in rows) and all(r['section_bidi'] for r in rows if r['file'].startswith('hand')) and all(r['fffd'] == 2 for r in rows if 'checks' in r['file'])
