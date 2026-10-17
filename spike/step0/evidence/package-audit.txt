@@ -1,0 +1,70 @@
+# Package audit (npm registry, 2026-10-16)
+name = 'fflate'
+version = '0.8.3'
+license = 'MIT'
+dist.integrity = 'sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA=='
+dist.shasum = 'bc27d8eb30343d4d512abb03480202ce65d825fc'
+dist.unpackedSize = 796742
+dist.fileCount = 17
+
+name = 'docx'
+version = '9.8.1'
+license = 'MIT'
+dist.integrity = 'sha512-bv4yDxgiV9aRyh327HG+V36wG0f23wk32SDhXGQpUhnykVtIPaR1K4ISi8E+DYJ7OcRQRkR8Y70QYlSS08V1cA=='
+dist.shasum = 'e0277f846ebc1a1c9f819b5085bfedeebf84df1a'
+dist.unpackedSize = 8996242
+dist.fileCount = 33
+
+## Installed tree
+meetfa-spike-step0@ /home/claude/s0/spike/step0
++-- docx@9.8.1
+| +-- @types/node@26.6.5
+| | `-- undici-types@8.9.0
+| +-- hash.js@1.1.7
+| | +-- inherits@2.0.4
+| | `-- minimalistic-assert@1.0.1
+| +-- jszip@3.10.2
+| | +-- lie@3.3.0
+| | | `-- immediate@3.0.6
+| | +-- pako@1.0.11
+| | +-- readable-stream@2.3.8
+| | | +-- core-util-is@1.0.3
+| | | +-- inherits@2.0.4 deduped
+| | | +-- isarray@1.0.0
+| | | +-- process-nextick-args@2.0.1
+| | | +-- safe-buffer@5.1.2
+| | | +-- string_decoder@1.1.1
+| | | | `-- safe-buffer@5.1.2 deduped
+| | | `-- util-deprecate@1.0.2
+| | `-- setimmediate@1.0.5
+| +-- nanoid@6.0.2
+| +-- xml-js@1.6.11
+| | `-- sax@1.6.1
+| `-- xml@1.0.1
+`-- fflate@0.8.3
+
+
+## fflate files
+./CHANGELOG.md
+./LICENSE
+./README.md
+./esm/browser.d.ts
+./esm/browser.js
+./esm/index.d.mts
+./esm/index.mjs
+./lib/browser.cjs
+./lib/browser.d.cts
+./lib/index.cjs
+./lib/index.d.ts
+./lib/node-worker.cjs
+./lib/node.cjs
+./lib/node.d.cts
+./lib/worker.cjs
+./package.json
+./umd/index.js
+
+## sha256 fflate/esm/browser.js
+b7ca4450b19559a1d50eb381adcee94b82449674be4cd17789d9beba7e6122a1
+
+## install scripts in tree
+none

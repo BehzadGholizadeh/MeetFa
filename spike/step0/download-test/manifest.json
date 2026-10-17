@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "MeetFa Spike — Download Test",
+  "version": "0.0.1",
+  "description": "Stage 3 Step 0 spike only. Tests Blob download from a side panel and from an extension tab. Not MeetFa.",
+  "minimum_chrome_version": "116",
+  "action": { "default_title": "MeetFa download spike" },
+  "background": { "service_worker": "sw.js" },
+  "side_panel": { "default_path": "panel.html" },
+  "permissions": ["sidePanel"]
+}

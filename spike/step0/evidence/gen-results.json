@@ -1,0 +1,38 @@
+[
+  {
+    "file": "hand-checks-A-single-run.docx",
+    "ms": 11,
+    "bytes": 3569,
+    "replacedInvalid": 2
+  },
+  {
+    "file": "hand-checks-B-split-runs.docx",
+    "ms": 7,
+    "bytes": 3598,
+    "replacedInvalid": 2
+  },
+  {
+    "file": "hand-checks-C-split-auto-dir.docx",
+    "ms": 5,
+    "bytes": 3606,
+    "replacedInvalid": 2
+  },
+  {
+    "file": "hand-large.docx",
+    "ms": 203,
+    "bytes": 148780,
+    "replacedInvalid": 0
+  },
+  {
+    "file": "lib-checks.docx",
+    "ms": 80,
+    "bytes": 10414,
+    "replacedInvalid": 2
+  },
+  {
+    "file": "lib-large.docx",
+    "ms": 454,
+    "bytes": 133635,
+    "replacedInvalid": 0
+  }
+]

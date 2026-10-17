@@ -1,0 +1,62 @@
+[
+ {
+  "file": "hand-checks-A-single-run.docx",
+  "paragraphs": 20,
+  "all_bidi": true,
+  "section_bidi": true,
+  "fffd": 2,
+  "text_invariant": true,
+  "rtl_runs": 18,
+  "bytes": 8379
+ },
+ {
+  "file": "hand-checks-B-split-runs.docx",
+  "paragraphs": 20,
+  "all_bidi": true,
+  "section_bidi": true,
+  "fffd": 2,
+  "text_invariant": true,
+  "rtl_runs": 20,
+  "bytes": 8918
+ },
+ {
+  "file": "hand-checks-C-split-auto-dir.docx",
+  "paragraphs": 20,
+  "all_bidi": true,
+  "section_bidi": true,
+  "fffd": 2,
+  "text_invariant": true,
+  "rtl_runs": 20,
+  "bytes": 8928
+ },
+ {
+  "file": "hand-large.docx",
+  "paragraphs": 3610,
+  "all_bidi": true,
+  "section_bidi": true,
+  "fffd": 0,
+  "text_invariant": true,
+  "rtl_runs": 9600,
+  "bytes": 2626708
+ },
+ {
+  "file": "lib-checks.docx",
+  "paragraphs": 20,
+  "all_bidi": true,
+  "section_bidi": false,
+  "fffd": 2,
+  "text_invariant": true,
+  "rtl_runs": 24,
+  "bytes": 33719
+ },
+ {
+  "file": "lib-large.docx",
+  "paragraphs": 3610,
+  "all_bidi": true,
+  "section_bidi": false,
+  "fffd": 0,
+  "text_invariant": true,
+  "rtl_runs": 3610,
+  "bytes": 1419469
+ }
+]

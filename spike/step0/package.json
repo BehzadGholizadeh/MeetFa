@@ -1,0 +1,14 @@
+{
+  "name": "meetfa-spike-step0",
+  "private": true,
+  "type": "module",
+  "description": "Stage 3 Step 0 spike: DOCX generation and download-path test. Not part of the extension build.",
+  "scripts": {
+    "gen": "node gen.mjs",
+    "check": "python3 check.py"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "docx": "9.8.1"
+  }
+}

@@ -1,0 +1,52 @@
+UCD 15.0.0
+id  want  wordShare letterShare | P1_first_strong | P2_any_rtl | P_word≥20% | P_word≥30% | P_word≥50% | P_letter≥20% | P_last_strong
+S1  rtl   1.0       1.0         | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S2  ltr   0.0       0.0         | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓
+S3  rtl   0.833     0.88        | ltr✗ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S4  rtl   0.6       0.588       | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S5  ltr   0.0       0.0         | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓
+S6  ltr   0.0       0.0         | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓
+S7  rtl   1.0       1.0         | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S8  rtl   None      None        | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S9  rtl   None      None        | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S10 rtl   None      None        | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S11 rtl   None      None        | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S12 rtl   0.8       0.842       | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S13 rtl   0.8       0.609       | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S14 rtl   0.6       0.562       | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | ltr✗
+S15 rtl   1.0       1.0         | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓
+S16 rtl   0.333     0.278       | ltr✗ | rtl✓ | rtl✓ | rtl✓ | ltr✗ | rtl✓ | rtl✓
+S17 rtl   0.8       0.824       | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | rtl✓ | ltr✗
+S18 ltr?  0.125     0.129       | ltr✓ | rtl✗ | ltr✓ | ltr✓ | ltr✓ | ltr✓ | ltr✓
+S19 ltr?  0.25      0.269       | ltr✓ | rtl✗ | rtl✗ | ltr✓ | ltr✓ | rtl✗ | ltr✓
+S20 ?     0.5       0.625       | ltr· | rtl· | rtl· | rtl· | rtl· | rtl· | rtl·
+
+mismatches vs firm wants (rtl/ltr) and soft wants (ltr?):
+  P1_first_strong  firm=['S3', 'S16'] soft=[]
+  P2_any_rtl       firm=[] soft=['S18', 'S19']
+  P_word≥20%       firm=[] soft=['S19']
+  P_word≥30%       firm=[] soft=[]
+  P_word≥50%       firm=['S16'] soft=[]
+  P_letter≥20%     firm=[] soft=['S19']
+  P_last_strong    firm=['S14', 'S17'] soft=[]
+
+word-share threshold sweep (firm + soft wants):
+  0.05: firm_fail=[] soft_fail=['S18', 'S19']
+  0.10: firm_fail=[] soft_fail=['S18', 'S19']
+  0.15: firm_fail=[] soft_fail=['S19']
+  0.20: firm_fail=[] soft_fail=['S19']
+  0.25: firm_fail=[] soft_fail=['S19']
+  0.30: firm_fail=[] soft_fail=[]
+  0.35: firm_fail=['S16'] soft_fail=[]
+  0.40: firm_fail=['S16'] soft_fail=[]
+  0.45: firm_fail=['S16'] soft_fail=[]
+  0.50: firm_fail=['S16'] soft_fail=[]
+  0.55: firm_fail=['S16'] soft_fail=[]
+  0.60: firm_fail=['S16'] soft_fail=[]
+  0.65: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
+  0.70: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
+  0.75: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
+  0.80: firm_fail=['S4', 'S14', 'S16'] soft_fail=[]
+  0.85: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17'] soft_fail=[]
+  0.90: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17'] soft_fail=[]
+  0.95: firm_fail=['S3', 'S4', 'S12', 'S13', 'S14', 'S16', 'S17'] soft_fail=[]
