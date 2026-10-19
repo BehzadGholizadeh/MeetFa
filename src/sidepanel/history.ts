@@ -1,6 +1,7 @@
 import type { Session, SessionStatus } from '../shared/types';
 import { deleteSession, getSegments, getSession, listSessions, renameSession } from '../storage/repositories';
-import { dateFmt, durationText, numFmt, segmentView } from './segmentView';
+import { buildTranscript } from '../transcript/buildTranscript';
+import { dateFmt, durationText, numFmt, turnView } from './segmentView';
 
 const SESSION_STATUS: Record<SessionStatus, string> = {
   active: 'در حال ضبط',
@@ -12,6 +13,8 @@ const $ = (id: string) => document.getElementById(id)!;
 const list = $('history-list');
 const detail = $('history-detail');
 let openId: string | null = null;
+/** Incremented on every detail render; a slower, older render never overwrites a newer one. */
+let renderSeq = 0;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -99,7 +102,10 @@ export async function refreshHistory(): Promise<void> {
 }
 
 async function openDetail(id: string): Promise<void> {
+  const seq = ++renderSeq;
+  const t0 = performance.now();
   const s = await getSession(id);
+  if (seq !== renderSeq) return;
   if (!s) {
     openId = null;
     return closeDetail();
@@ -109,16 +115,41 @@ async function openDetail(id: string): Promise<void> {
   $('detail-title').dir = 'auto';
   $('detail-meta').textContent =
     `${SESSION_STATUS[s.status]} · ${meta(s)}` + (s.status === 'active' ? ' — متن زنده را در بخش «زنده» ببینید' : '');
-  const segs = await getSegments(id);
-  $('detail-feed').replaceChildren(
-    ...(segs.length ? segs.map((x) => segmentView(x)) : [el('p', 'empty', 'این جلسه متنی ندارد.')]),
-  );
+  const feed = $('detail-feed');
+  try {
+    const segs = await getSegments(id);
+    if (seq !== renderSeq) return;
+    // Read-only: buildTranscript is pure and nothing here writes to storage.
+    const transcript = buildTranscript(s, segs);
+    feed.replaceChildren(
+      ...(transcript.turns.length ? transcript.turns.map(turnView) : [el('p', 'empty', 'این جلسه متنی ندارد.')]),
+    );
+    logRenderTiming(t0, transcript.turns.length, transcript.stats.segmentCount);
+  } catch (err) {
+    console.error('[MeetFa] transcript render failed', err);
+    if (seq === renderSeq) feed.replaceChildren(el('p', 'empty', 'نمایش متن این جلسه ممکن نشد. داده‌های ذخیره‌شده تغییری نکرده است.'));
+  }
   list.hidden = true;
   detail.hidden = false;
 }
 
+/**
+ * Performance marks for the Stage 3 long-session measurement (logged as "[MeetFa] perf").
+ * "dom" = turns built and inserted; "paint" = after the next two animation frames (approximate first paint).
+ */
+function logRenderTiming(t0: number, turns: number, segments: number): void {
+  const dom = performance.now() - t0;
+  performance.mark('meetfa-transcript-dom');
+  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f: FrameRequestCallback) => setTimeout(f, 0);
+  raf(() => raf(() => {
+    performance.mark('meetfa-transcript-paint');
+    console.debug(`[MeetFa] perf transcript: ${segments} segments, ${turns} turns, dom ${dom.toFixed(0)} ms, paint ${(performance.now() - t0).toFixed(0)} ms`);
+  }));
+}
+
 function closeDetail(): void {
   openId = null;
+  renderSeq++;
   detail.hidden = true;
   list.hidden = false;
   void refreshHistory();
