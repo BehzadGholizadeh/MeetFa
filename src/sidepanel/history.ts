@@ -103,8 +103,10 @@ export async function refreshHistory(): Promise<void> {
 
 async function openDetail(id: string): Promise<void> {
   const seq = ++renderSeq;
-  const t0 = performance.now();
-  const s = await getSession(id);
+  const s = await getSession(id).catch((err: unknown) => {
+    // Handled by the common error path below.
+    throw err;
+  });
   if (seq !== renderSeq) return;
   if (!s) {
     openId = null;
@@ -119,32 +121,20 @@ async function openDetail(id: string): Promise<void> {
   try {
     const segs = await getSegments(id);
     if (seq !== renderSeq) return;
+    // Measure rendering separately from storage reads.
+    const renderT0 = performance.now();
     // Read-only: buildTranscript is pure and nothing here writes to storage.
     const transcript = buildTranscript(s, segs);
     feed.replaceChildren(
       ...(transcript.turns.length ? transcript.turns.map(turnView) : [el('p', 'empty', 'این جلسه متنی ندارد.')]),
     );
-    logRenderTiming(t0, transcript.turns.length, transcript.stats.segmentCount);
+    logRenderTiming(renderT0, transcript.turns.length, transcript.stats.segmentCount);
   } catch (err) {
     console.error('[MeetFa] transcript render failed', err);
     if (seq === renderSeq) feed.replaceChildren(el('p', 'empty', 'نمایش متن این جلسه ممکن نشد. داده‌های ذخیره‌شده تغییری نکرده است.'));
   }
   list.hidden = true;
   detail.hidden = false;
-}
-
-/**
- * Performance marks for the Stage 3 long-session measurement (logged as "[MeetFa] perf").
- * "dom" = turns built and inserted; "paint" = after the next two animation frames (approximate first paint).
- */
-function logRenderTiming(t0: number, turns: number, segments: number): void {
-  const dom = performance.now() - t0;
-  performance.mark('meetfa-transcript-dom');
-  const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f: FrameRequestCallback) => setTimeout(f, 0);
-  raf(() => raf(() => {
-    performance.mark('meetfa-transcript-paint');
-    console.debug(`[MeetFa] perf transcript: ${segments} segments, ${turns} turns, dom ${dom.toFixed(0)} ms, paint ${(performance.now() - t0).toFixed(0)} ms`);
-  }));
 }
 
 function closeDetail(): void {
