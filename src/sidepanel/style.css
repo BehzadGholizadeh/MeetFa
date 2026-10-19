@@ -90,3 +90,26 @@ body { overflow: hidden; }
 .detail-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .detail-head { padding: 8px 14px 6px; border-bottom: 1px solid var(--line); }
 .detail-head h2 { margin: 4px 0 0; font-size: 15px; unicode-bidi: plaintext; }
+
+/* ───────── Stage 3 / Step 2: speaker turns in the transcript view ───────── */
+.turn {
+  padding: 8px 0; border-bottom: 1px solid var(--line);
+  /* F1 for long sessions: skip layout/paint of off-screen turns */
+  content-visibility: auto; contain-intrinsic-size: auto 96px;
+}
+.turn-head { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); }
+.turn-speaker { font-weight: 600; color: var(--ink); unicode-bidi: plaintext; }
+.turn-partial { color: var(--error); }
+.turn-text { margin: 2px 0 0; unicode-bidi: plaintext; text-align: start; white-space: pre-wrap; overflow-wrap: anywhere; }
+.turn-text + .turn-text { margin-top: 6px; }
+
+/* ───────── Word export (detail view) ───────── */
+.detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; }
+.detail-actions .meta { margin: 0; }
+.btn {
+  font: inherit; font-size: 12.5px; padding: 3px 12px; cursor: pointer;
+  border: 1px solid var(--ready); border-radius: 6px; background: none; color: var(--ready);
+}
+.btn:disabled { border-color: var(--line); color: var(--muted); cursor: not-allowed; }
+.btn:focus-visible { outline: 2px solid var(--ready); outline-offset: 2px; }
+#export-status[data-kind="error"] { color: var(--error); }

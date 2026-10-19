@@ -1,6 +1,8 @@
 import type { Session, SessionStatus } from '../shared/types';
 import { deleteSession, getSegments, getSession, listSessions, renameSession } from '../storage/repositories';
-import { dateFmt, durationText, numFmt, segmentView } from './segmentView';
+import { exportSessionDocx } from '../export/exportSession';
+import { buildTranscript } from '../transcript/buildTranscript';
+import { dateFmt, durationText, numFmt, turnView } from './segmentView';
 
 const SESSION_STATUS: Record<SessionStatus, string> = {
   active: 'در حال ضبط',
@@ -12,6 +14,59 @@ const $ = (id: string) => document.getElementById(id)!;
 const list = $('history-list');
 const detail = $('history-detail');
 let openId: string | null = null;
+/** Incremented on every detail render; a slower, older render never overwrites a newer one. */
+let renderSeq = 0;
+
+const exportBtn = $('export-word') as HTMLButtonElement;
+const exportStatus = $('export-status');
+export const EXPORT_MSG = {
+  busy: 'در حال ساخت فایل Word…',
+  empty: 'این جلسه متنی برای دریافت ندارد.',
+  missing: 'این جلسه دیگر وجود ندارد.',
+  failed: 'ساخت یا دانلود فایل Word ممکن نشد. داده‌های ذخیره‌شده تغییری نکرده است.',
+  /** File name is wrapped in FSI…PDI so a Latin or mixed title does not reorder the sentence. */
+  started: (fileName: string) => `دانلود «⁨${fileName}⁩» شروع شد.`,
+} as const;
+let exportBusy = false;
+/** True when the open transcript has at least one turn. */
+let exportable = false;
+/** Session the export status message belongs to; another session clears it. */
+let exportStatusFor: string | null = null;
+
+function setExportable(value: boolean, reason = ''): void {
+  exportable = value;
+  exportBtn.disabled = !value || exportBusy;
+  exportBtn.title = value ? '' : reason;
+}
+
+function showExportStatus(id: string | null, text: string, kind?: 'error'): void {
+  exportStatusFor = id;
+  exportStatus.textContent = text;
+  if (kind) exportStatus.dataset.kind = kind;
+  else delete exportStatus.dataset.kind;
+}
+
+async function exportWord(): Promise<void> {
+  const id = openId;
+  if (!id || exportBusy) return;
+  exportBusy = true;
+  exportBtn.disabled = true;
+  showExportStatus(id, EXPORT_MSG.busy);
+  let text: string;
+  let kind: 'error' | undefined;
+  try {
+    const r = await exportSessionDocx(id);
+    if (r.status === 'ok') text = EXPORT_MSG.started(r.fileName);
+    else [text, kind] = [EXPORT_MSG[r.status], 'error'];
+  } catch (err) {
+    console.error('[MeetFa] Word export failed', err);
+    [text, kind] = [EXPORT_MSG.failed, 'error'];
+  } finally {
+    exportBusy = false;
+  }
+  if (exportStatusFor === id) showExportStatus(id, text, kind);
+  exportBtn.disabled = !exportable;
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -99,7 +154,26 @@ export async function refreshHistory(): Promise<void> {
 }
 
 async function openDetail(id: string): Promise<void> {
-  const s = await getSession(id);
+  const seq = ++renderSeq;
+  // Clear any prior selection while this request is in flight or if it fails.
+  openId = null;
+  setExportable(false);
+  if (exportStatusFor !== id) showExportStatus(null, '');
+  let s: Session | undefined;
+  try {
+    s = await getSession(id);
+  } catch (err) {
+    console.error('[MeetFa] transcript session read failed', err);
+    if (seq === renderSeq) {
+      $('detail-title').textContent = 'نمایش جلسه ممکن نشد';
+      $('detail-meta').textContent = '';
+      $('detail-feed').replaceChildren(el('p', 'empty', 'نمایش متن این جلسه ممکن نشد. داده‌های ذخیره‌شده تغییری نکرده است.'));
+      list.hidden = true;
+      detail.hidden = false;
+    }
+    return;
+  }
+  if (seq !== renderSeq) return;
   if (!s) {
     openId = null;
     return closeDetail();
@@ -109,19 +183,57 @@ async function openDetail(id: string): Promise<void> {
   $('detail-title').dir = 'auto';
   $('detail-meta').textContent =
     `${SESSION_STATUS[s.status]} · ${meta(s)}` + (s.status === 'active' ? ' — متن زنده را در بخش «زنده» ببینید' : '');
-  const segs = await getSegments(id);
-  $('detail-feed').replaceChildren(
-    ...(segs.length ? segs.map((x) => segmentView(x)) : [el('p', 'empty', 'این جلسه متنی ندارد.')]),
-  );
+  const feed = $('detail-feed');
+  try {
+    const segs = await getSegments(id);
+    if (seq !== renderSeq) return;
+    // Measure rendering separately from storage reads.
+    const renderT0 = performance.now();
+    // Read-only: buildTranscript is pure and nothing here writes to storage.
+    const transcript = buildTranscript(s, segs);
+    feed.replaceChildren(
+      ...(transcript.turns.length ? transcript.turns.map(turnView) : [el('p', 'empty', 'این جلسه متنی ندارد.')]),
+    );
+    setExportable(transcript.turns.length > 0, EXPORT_MSG.empty);
+    logRenderTiming(renderT0, transcript.turns.length, transcript.stats.segmentCount);
+  } catch (err) {
+    console.error('[MeetFa] transcript render failed', err);
+    if (seq === renderSeq) feed.replaceChildren(el('p', 'empty', 'نمایش متن این جلسه ممکن نشد. داده‌های ذخیره‌شده تغییری نکرده است.'));
+  }
   list.hidden = true;
   detail.hidden = false;
 }
 
+
+/**
+ * Performance marks for long-session transcript measurements.
+ * "dom" is elapsed time until turns are inserted; "paint" is an approximation
+ * measured after two animation frames. The timer starts at render construction,
+ * after session and segment storage reads have completed.
+ */
+function logRenderTiming(t0: number, turns: number, segments: number): void {
+  const dom = performance.now() - t0;
+  performance.mark('meetfa-transcript-dom');
+  const raf = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (callback: FrameRequestCallback) => setTimeout(callback, 0);
+  raf(() => raf(() => {
+    performance.mark('meetfa-transcript-paint');
+    console.debug(
+      `[MeetFa] perf transcript: ${segments} segments, ${turns} turns, dom ${dom.toFixed(0)} ms, paint ${(performance.now() - t0).toFixed(0)} ms`,
+    );
+  }));
+}
+
 function closeDetail(): void {
   openId = null;
+  renderSeq++;
+  setExportable(false);
+  showExportStatus(null, '');
   detail.hidden = true;
   list.hidden = false;
   void refreshHistory();
 }
 
 $('back').addEventListener('click', closeDetail);
+exportBtn.addEventListener('click', () => void exportWord());
