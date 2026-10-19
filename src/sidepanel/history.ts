@@ -149,6 +149,27 @@ async function openDetail(id: string): Promise<void> {
   detail.hidden = false;
 }
 
+
+/**
+ * Performance marks for long-session transcript measurements.
+ * "dom" is elapsed time until turns are inserted; "paint" is an approximation
+ * measured after two animation frames. The timer starts at render construction,
+ * after session and segment storage reads have completed.
+ */
+function logRenderTiming(t0: number, turns: number, segments: number): void {
+  const dom = performance.now() - t0;
+  performance.mark('meetfa-transcript-dom');
+  const raf = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (callback: FrameRequestCallback) => setTimeout(callback, 0);
+  raf(() => raf(() => {
+    performance.mark('meetfa-transcript-paint');
+    console.debug(
+      `[MeetFa] perf transcript: ${segments} segments, ${turns} turns, dom ${dom.toFixed(0)} ms, paint ${(performance.now() - t0).toFixed(0)} ms`,
+    );
+  }));
+}
+
 function closeDetail(): void {
   openId = null;
   renderSeq++;
