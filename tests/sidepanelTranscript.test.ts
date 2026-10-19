@@ -34,6 +34,7 @@ beforeAll(async () => {
     <div id="history-detail" class="detail-view" hidden>
       <button id="back" class="link">→ بازگشت به لیست</button>
       <h2 id="detail-title"></h2><p id="detail-meta" class="meta"></p>
+      <button id="export-word" type="button" disabled>دریافت فایل Word</button><span id="export-status"></span>
       <div id="detail-feed" class="feed"></div>
     </div>`;
   history = await import('../src/sidepanel/history');

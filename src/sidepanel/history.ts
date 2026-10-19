@@ -1,5 +1,6 @@
 import type { Session, SessionStatus } from '../shared/types';
 import { deleteSession, getSegments, getSession, listSessions, renameSession } from '../storage/repositories';
+import { exportSessionDocx } from '../export/exportSession';
 import { buildTranscript } from '../transcript/buildTranscript';
 import { dateFmt, durationText, numFmt, turnView } from './segmentView';
 
@@ -15,6 +16,57 @@ const detail = $('history-detail');
 let openId: string | null = null;
 /** Incremented on every detail render; a slower, older render never overwrites a newer one. */
 let renderSeq = 0;
+
+const exportBtn = $('export-word') as HTMLButtonElement;
+const exportStatus = $('export-status');
+export const EXPORT_MSG = {
+  busy: 'در حال ساخت فایل Word…',
+  empty: 'این جلسه متنی برای دریافت ندارد.',
+  missing: 'این جلسه دیگر وجود ندارد.',
+  failed: 'ساخت یا دانلود فایل Word ممکن نشد. داده‌های ذخیره‌شده تغییری نکرده است.',
+  /** File name is wrapped in FSI…PDI so a Latin or mixed title does not reorder the sentence. */
+  started: (fileName: string) => `دانلود «⁨${fileName}⁩» شروع شد.`,
+} as const;
+let exportBusy = false;
+/** True when the open transcript has at least one turn. */
+let exportable = false;
+/** Session the export status message belongs to; another session clears it. */
+let exportStatusFor: string | null = null;
+
+function setExportable(value: boolean, reason = ''): void {
+  exportable = value;
+  exportBtn.disabled = !value || exportBusy;
+  exportBtn.title = value ? '' : reason;
+}
+
+function showExportStatus(id: string | null, text: string, kind?: 'error'): void {
+  exportStatusFor = id;
+  exportStatus.textContent = text;
+  if (kind) exportStatus.dataset.kind = kind;
+  else delete exportStatus.dataset.kind;
+}
+
+async function exportWord(): Promise<void> {
+  const id = openId;
+  if (!id || exportBusy) return;
+  exportBusy = true;
+  exportBtn.disabled = true;
+  showExportStatus(id, EXPORT_MSG.busy);
+  let text: string;
+  let kind: 'error' | undefined;
+  try {
+    const r = await exportSessionDocx(id);
+    if (r.status === 'ok') text = EXPORT_MSG.started(r.fileName);
+    else [text, kind] = [EXPORT_MSG[r.status], 'error'];
+  } catch (err) {
+    console.error('[MeetFa] Word export failed', err);
+    [text, kind] = [EXPORT_MSG.failed, 'error'];
+  } finally {
+    exportBusy = false;
+  }
+  if (exportStatusFor === id) showExportStatus(id, text, kind);
+  exportBtn.disabled = !exportable;
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -105,6 +157,8 @@ async function openDetail(id: string): Promise<void> {
   const seq = ++renderSeq;
   // Clear any prior selection while this request is in flight or if it fails.
   openId = null;
+  setExportable(false);
+  if (exportStatusFor !== id) showExportStatus(null, '');
   let s: Session | undefined;
   try {
     s = await getSession(id);
@@ -140,6 +194,7 @@ async function openDetail(id: string): Promise<void> {
     feed.replaceChildren(
       ...(transcript.turns.length ? transcript.turns.map(turnView) : [el('p', 'empty', 'این جلسه متنی ندارد.')]),
     );
+    setExportable(transcript.turns.length > 0, EXPORT_MSG.empty);
     logRenderTiming(renderT0, transcript.turns.length, transcript.stats.segmentCount);
   } catch (err) {
     console.error('[MeetFa] transcript render failed', err);
@@ -173,9 +228,12 @@ function logRenderTiming(t0: number, turns: number, segments: number): void {
 function closeDetail(): void {
   openId = null;
   renderSeq++;
+  setExportable(false);
+  showExportStatus(null, '');
   detail.hidden = true;
   list.hidden = false;
   void refreshHistory();
 }
 
 $('back').addEventListener('click', closeDetail);
+exportBtn.addEventListener('click', () => void exportWord());
