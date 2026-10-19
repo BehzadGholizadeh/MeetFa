@@ -118,7 +118,8 @@ export function buildTranscriptDocx(transcript: Transcript, opts: { now?: Date }
   const core =
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
     `<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">` +
-    `<dc:title>${esc(clean(title))}</dc:title><dc:creator>MeetFa</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${created}</dcterms:created></cp:coreProperties>`;
+    // Title already counted in `replaced` by its header line; sanitize again without counting.
+    `<dc:title>${esc(sanitizeXmlText(title)[0])}</dc:title><dc:creator>MeetFa</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${created}</dcterms:created></cp:coreProperties>`;
 
   const files: Record<string, string> = {
     '[Content_Types].xml': CONTENT_TYPES,

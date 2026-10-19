@@ -116,6 +116,13 @@ describe('transcript content', () => {
     expect(speakerParas(doc)[0].runs.filter((r) => r.bold).map((r) => r.text).join('')).toBe('<b>x</b>');
   });
 
+  it('an invalid code point in the title is counted once, though the title is written twice', () => {
+    const { replaced, parts, doc } = docxOf({ ...SESSION, title: 'جلسه\u0001' }, [seg('A', 'x', 0)]);
+    expect(replaced).toBe(1);
+    expect(paragraphs(doc)[0].text).toBe('جلسه�');
+    expect(parts['docProps/core.xml']).toContain('<dc:title>جلسه�</dc:title>');
+  });
+
   it('line breaks inside a segment become w:br', () => {
     const { parts } = docxOf(SESSION, [seg('A', 'خط یک\nخط دو', 0)]);
     expect(parts['word/document.xml']).toContain('<w:br/>');
