@@ -103,10 +103,20 @@ export async function refreshHistory(): Promise<void> {
 
 async function openDetail(id: string): Promise<void> {
   const seq = ++renderSeq;
-  const s = await getSession(id).catch((err: unknown) => {
-    // Handled by the common error path below.
-    throw err;
-  });
+  let s: Session | undefined;
+  try {
+    s = await getSession(id);
+  } catch (err) {
+    console.error('[MeetFa] transcript session read failed', err);
+    if (seq === renderSeq) {
+      $('detail-title').textContent = 'نمایش جلسه ممکن نشد';
+      $('detail-meta').textContent = '';
+      $('detail-feed').replaceChildren(el('p', 'empty', 'نمایش متن این جلسه ممکن نشد. داده‌های ذخیره‌شده تغییری نکرده است.'));
+      list.hidden = true;
+      detail.hidden = false;
+    }
+    return;
+  }
   if (seq !== renderSeq) return;
   if (!s) {
     openId = null;
