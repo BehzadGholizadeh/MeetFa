@@ -5,10 +5,13 @@ import { PARTIAL_MARKER, timeFmt, turnView } from '../src/sidepanel/segmentView'
 import { SESSION, seg, shuffled } from './transcriptFixture';
 
 /** In-memory stand-in for the storage layer; write functions are spies that must never be called by the view. */
-const store = vi.hoisted(() => ({ session: null as Session | null, segments: [] as StoredSegment[], failSegments: false, gate: null as Promise<void> | null }));
+const store = vi.hoisted(() => ({ session: null as Session | null, segments: [] as StoredSegment[], failSession: false, failSegments: false, gate: null as Promise<void> | null }));
 vi.mock('../src/storage/repositories', () => ({
   listSessions: vi.fn(async () => (store.session ? [store.session] : [])),
-  getSession: vi.fn(async () => store.session ?? undefined),
+  getSession: vi.fn(async () => {
+    if (store.failSession) throw new Error('session read failed');
+    return store.session ?? undefined;
+  }),
   getSegments: vi.fn(async () => {
     if (store.gate) await store.gate;
     if (store.failSegments) throw new Error('read failed');
@@ -41,6 +44,7 @@ afterEach(() => {
   (document.getElementById('back') as HTMLButtonElement).click(); // back to list, reset view state
   store.session = null;
   store.segments = [];
+  store.failSession = false;
   store.failSegments = false;
   store.gate = null;
   vi.clearAllMocks();
@@ -130,6 +134,17 @@ describe('transcript view renders buildTranscript turns', () => {
 });
 
 describe('empty and error states', () => {
+  it('a failing session read shows an error message instead of leaving an unhandled rejection', async () => {
+    store.failSession = true;
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await openTranscript(SESSION, [seg('A', 'x', 0)]);
+    expect(document.getElementById('history-detail')!.hidden).toBe(false);
+    expect(document.getElementById('detail-title')!.textContent).toBe('نمایش جلسه ممکن نشد');
+    expect(feed().textContent).toContain('نمایش متن این جلسه ممکن نشد');
+    expect(repos.getSegments).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
   it('5. a session with no segments shows the empty state', async () => {
     await openTranscript(SESSION, []);
     expect(turns()).toHaveLength(0);
