@@ -103,6 +103,8 @@ export async function refreshHistory(): Promise<void> {
 
 async function openDetail(id: string): Promise<void> {
   const seq = ++renderSeq;
+  // Clear any prior selection while this request is in flight or if it fails.
+  openId = null;
   let s: Session | undefined;
   try {
     s = await getSession(id);
